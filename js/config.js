@@ -5,6 +5,6 @@
  * NUNCA pongas acá la "service_role" / "secret".
  */
 window.QOS_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: ''
+  supabaseUrl: 'https://dntrvrgzzzdlivpbyluo.supabase.co',
+  supabaseKey: 'sb_publishable_ZQQUsOZEPPelh2qQFSWFrQ_KJ-FvH7F'
 };

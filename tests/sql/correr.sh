@@ -8,6 +8,6 @@ PSQL="psql -v ON_ERROR_STOP=1 -q -X"
 createdb "$DB"
 trap 'dropdb --if-exists "$DB"' EXIT
 $PSQL -d "$DB" -f tests/sql/supabase_simulado.sql
-$PSQL -d "$DB" -f supabase/migrations/0001_inicial.sql
+for m in supabase/migrations/*.sql; do $PSQL -d "$DB" -f "$m"; done
 $PSQL -d "$DB" -o /dev/null -f tests/sql/pruebas.sql
 echo "Pruebas SQL: OK"

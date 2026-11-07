@@ -176,3 +176,8 @@ do $$ begin
   assert (select count(*) from public.miembros where user_id = auth.uid()) = 1, 'El admin no se puede quitar a sí mismo';
 end $$;
 reset role;
+
+-- ── Las funciones internas no se pueden llamar desde la app ──
+set role authenticated;
+select prueba.debe_fallar($$select public.pallets_faltantes('{}'::jsonb)$$, 'permission denied');
+reset role;

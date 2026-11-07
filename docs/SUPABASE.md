@@ -11,10 +11,14 @@ Paso a paso para dejar la base lista. Se hace una sola vez.
 > El plan gratis permite 2 proyectos activos. Los que no se usan se pausan solos a la
 > semana sin actividad; se reactivan desde el panel.
 
+> El proyecto de QualityOS ya existe: `qualityos` (ref `dntrvrgzzzdlivpbyluo`, São Paulo),
+> con las migraciones aplicadas y `js/config.js` completo. Esta guía queda para armar
+> otro proyecto desde cero.
+
 ## 2. Cargar el esquema
 
 1. En el proyecto: **SQL Editor** → **New query**.
-2. Pegá todo el contenido de `supabase/migrations/0001_inicial.sql` y tocá **Run**.
+2. Pegá el contenido de cada archivo de `supabase/migrations/`, **en orden**, y tocá **Run**.
 3. En **Table Editor** tienen que aparecer: `empresas`, `miembros`, `invitaciones`, `lotes`
    y `lotes_historial`, todas con el candado de **RLS** activado.
 
@@ -60,6 +64,14 @@ archivo nuevo.
 3. ⚙ → configurá inductoras, líneas y datos del registro.
 4. ⚙ → **Personas → Invitar**: email y rol de cada persona. Cada una crea su cuenta con ese
    mismo email y al entrar queda sumada.
+
+## Advertencias del panel (Advisors)
+
+**Security Advisor** muestra 7 avisos "Signed-In Users Can Execute SECURITY DEFINER Function"
+(`guardar_lote`, `crear_empresa`, `aceptar_invitaciones`, `cambiar_mi_nombre`, `mi_rol`,
+`es_miembro`, `es_admin`). Son **intencionales**: las cuatro primeras son la forma en que la
+app escribe (y validan permisos adentro) y las tres últimas las usan las reglas RLS.
+Si aparece cualquier otra función, revisarla.
 
 ## Roles
 
