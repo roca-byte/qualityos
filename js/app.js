@@ -18,10 +18,7 @@
     { v: 'RETENIDO', txt: 'Retenido', cls: 'nok' }
   ];
   var ESTADOS = { activo: 'En control', aprobado: 'Aprobado', aprobado_parcial: 'Aprobado parcial', retenido: 'Retenido' };
-  var CONFIG_INICIAL = {
-    inductoras: [{ id: 'A', nombre: 'Inductora A', tolMin: 1.0, tolMax: 1.4, unidad: '', semaforo: true }],
-    lineas: [], docCodigo: 'REG-01', docVersion: '00', docElab: '', docAprob: ''
-  };
+  var CONFIG_INICIAL = { lineas: [], docCodigo: 'REG-01', docVersion: '00', docElab: '', docAprob: '' };
 
   // ───────────────────────── Ayudas ─────────────────────────
 
@@ -29,7 +26,10 @@
   function config() { return Object.assign({}, CONFIG_INICIAL, (perfil() && perfil().config) || {}); }
   function esSuperior() { var r = perfil() && perfil().rol; return r === 'coordinacion' || r === 'admin'; }
   function esAdmin() { return perfil() && perfil().rol === 'admin'; }
-  function inductora(id) { return config().inductoras.filter(function (i) { return i.id === id; })[0] || null; }
+  // Plantillas de control de la empresa (con configuración vieja, la equivalente).
+  function plantillasEmpresa() { return Reglas.plantillas(config()); }
+  // "pallet" / "pallets" según la plantilla del lote, para los textos.
+  function nombreUnidad(p, n) { return String(n === 1 ? p.unidad : p.unidades).toLowerCase(); }
 
   // Un lote dictaminado queda bloqueado para el inspector (el servidor también lo exige).
   function editable(lote) { return lote.datos.estado === 'activo' || esSuperior(); }
@@ -70,6 +70,7 @@
     try {
       var r = await Nube.sincronizar();
       if (r && r.conflictos) aviso('⚠ ' + r.conflictos + ' lote(s) los cambió otro equipo. Revisá "Conflictos".');
+      if (r && r.bajados) migrarLotesViejos();
       if (r && (r.bajados || r.conflictos) && ui.pantalla === 'inicio') dibujar();
       if (r && r.conflictos && ui.pantalla === 'lote' && !Store.lote(ui.loteId)) ir('inicio');
       else if (r && r.conflictos && ui.pantalla === 'lote') dibujar();
@@ -117,8 +118,18 @@
     await elegirEmpresa(u, '');
   }
 
+  // Lotes del formato anterior (campos fijos de agroquímicos) → formato con plantilla.
+  // Solo en este equipo (sin marcarlos para subir): un lote viejo ya dictaminado no lo puede
+  // modificar un inspector, y el servidor rechazaría la subida.
+  function migrarLotesViejos() {
+    Store.lotes().forEach(function (l) {
+      if (l.datos.formato !== 2) Store.convertir(l.id, Reglas.migrarLote(l.datos, config()));
+    });
+  }
+
   function entrarA(p) {
     Store.setPerfil(p);
+    migrarLotesViejos();
     // La primera vez de esta persona en este equipo (o si todavía no cargó su nombre,
     // que sale en la firma del dictamen) se muestra la bienvenida en vez de la lista.
     if (!p.nombre || !Store.guiaVista(p.userId)) ir('bienvenida');
@@ -238,14 +249,14 @@
 
   // Pasos de la bienvenida según el rol: cada uno ve lo que le toca hacer primero.
   var PASOS_INSPECTOR = [
-    ['Creá el lote', 'Tocá <b>+ Nuevo lote</b> y cargá producto, n° de lote, cliente, línea y el rango de peso por pico.'],
-    ['Controlá en línea', 'Pallet por pallet: los 4 pesos, la identificación y OK/NOK de inducción, QR, packaging y paletizado. Si corregiste un NOK en el momento, marcalo como <b>Reprocesado</b>.'],
-    ['Hacé el control final', 'Revisá cada pallet. Si está todo bien, <b>✓ Todo OK</b> lo completa de un toque.'],
+    ['Creá el lote', 'Tocá <b>+ Nuevo lote</b>, elegí la plantilla de control y cargá producto, n° de lote, cliente, línea y los rangos que pida.'],
+    ['Controlá en línea', 'Unidad por unidad (pallet, caja, muestra…), cargá lo que pide la plantilla: mediciones, OK/NOK y datos. Lo que sale de tolerancia se marca solo. Si corregiste un NOK en el momento, marcalo como <b>Reprocesado</b>.'],
+    ['Hacé el control final', 'Revisá cada unidad antes del despacho. Si está todo bien, <b>✓ Todo OK</b> lo completa de un toque.'],
     ['Dictaminá', 'La app sugiere Aprobado, Aprobado parcial o Retenido según el control final. Vos decidís.'],
     ['Guardá el registro', '<b>Imprimir / PDF</b> arma el registro del lote listo para archivar.']
   ];
   var PASOS_ADMIN = [
-    ['Configurá la empresa', 'En <b>⚙</b> cargá las inductoras con sus tolerancias, las líneas y los datos del registro (código, versión, quién elaboró y aprobó).'],
+    ['Armá tus plantillas de control', 'En <b>⚙ → Plantillas</b> definí qué se controla en tu planta (mediciones con tolerancia, OK/NOK, datos). Podés empezar desde un ejemplo de tu rubro. Cargá también las líneas y los datos del registro.'],
     ['Invitá a tu equipo', 'En <b>⚙ → Personas</b> escribí el email y el rol de cada persona. Ellas crean su cuenta con ese mismo email y quedan adentro.'],
     ['Probá un lote', 'Creá un lote de prueba para ver el circuito completo: control en línea, control final, dictamen y PDF.']
   ];
@@ -256,7 +267,7 @@
     // entre como Administración para poder ver también ⚙.
     var pasos = p.rol === 'admin' && !p.demo ? PASOS_ADMIN : PASOS_INSPECTOR;
     var extra = p.rol === 'coordinacion'
-      ? '<p class="ayuda">Como <b>Coordinación</b> además podés dictaminar con pallets pendientes, reabrir o corregir lotes dictaminados y borrar lotes.</p>'
+      ? '<p class="ayuda">Como <b>Coordinación</b> además podés dictaminar con unidades pendientes, reabrir o corregir lotes dictaminados y borrar lotes.</p>'
       : '';
     if (p.demo) {
       extra = '<p class="ayuda">Ya hay un lote <b>en control</b> para seguir y otros dictaminados en <b>Historial</b>. ' +
@@ -314,15 +325,16 @@
 
   // Lista vacía con una pista de qué hacer (sobre todo la primera vez).
   function listaVacia() {
-    var sinConfig = esAdmin() && !(perfil().config && perfil().config.inductoras);
+    var sinConfig = esAdmin() && !(perfil().config && perfil().config.plantillas);
     return '<div class="vacio"><p>No hay lotes en control.</p>' +
       (sinConfig
-        ? '<p class="ayuda">Antes del primer lote, cargá tus inductoras y líneas en <b>⚙</b>.</p>'
+        ? '<p class="ayuda">Antes del primer lote, armá tus plantillas de control en <b>⚙</b>.</p>'
         : '<p class="ayuda">Tocá <b>+ Nuevo lote</b> para empezar.</p>') + '</div>';
   }
 
   function tarjetaLote(l) {
-    var d = l.datos, c = d.cab;
+    // Los resultados de la búsqueda en el servidor pueden venir en el formato anterior.
+    var d = l.datos.formato === 2 ? l.datos : Reglas.migrarLote(l.datos, config()), c = d.cab;
     var r = Reglas.resumenFinal(d);
     return '<button class="lote-item estado-' + esc(d.estado) + '" data-act="abrir" data-id="' + esc(l.id) + '"' +
       (l.remoto ? ' data-remoto="1"' : '') + '>' +
@@ -334,29 +346,47 @@
   }
 
   // Formulario de cabecera: sirve para lote nuevo y para editar.
+  // Al crear, se elige la plantilla; sus mediciones con tolerancia "por lote" piden acá su rango.
   pantallas.nuevo = function () {
     var l = ui.loteId ? Store.lote(ui.loteId) : null;
-    var c = l ? l.datos.cab : { fecha: Reglas.hoy(), indId: (config().inductoras[0] || {}).id, checker: perfil().nombre };
+    var ps = plantillasEmpresa();
+    var b = ui.borrador || {}; // lo tipeado antes de cambiar de plantilla
+    var c = l ? l.datos.cab : Object.assign({ fecha: Reglas.hoy(), checker: perfil().nombre, rangos: {} }, b);
+    var p = l ? l.datos.plantilla : (ps.filter(function (x) { return x.id === b.plantillaId; })[0] || ps[0]);
+    var conRango = p.linea.concat(p.final).filter(function (it) { return it.tipo === 'medicion' && it.tolerancia === 'lote'; });
+    var rangos = c.rangos || {};
     var lineas = config().lineas || [];
     return '<section class="tarjeta"><h2>' + (l ? 'Datos del lote' : 'Nuevo lote') + '</h2>' +
       '<form data-form="cabecera">' +
+      (l ? '<p class="meta">Plantilla: ' + esc(p.nombre) + '</p>'
+        : ps.length > 1 ? '<label>Plantilla de control<select name="plantilla" data-act-change="plantilla-lote">' +
+            opciones(ps.map(function (x) { return { v: x.id, t: x.nombre }; }), p.id) + '</select></label>'
+          : '<p class="meta">Plantilla: ' + esc(p.nombre) + '</p>') +
       '<label>Producto *<input name="prod" required value="' + esc(c.prod || '') + '"></label>' +
       '<label>N° de lote *<input name="lote" required value="' + esc(c.lote || '') + '"></label>' +
       '<label>Cliente<input name="cliente" value="' + esc(c.cliente || '') + '"></label>' +
       '<label>Línea<input name="linea" list="lineas" value="' + esc(c.linea || '') + '"></label>' +
       '<datalist id="lineas">' + lineas.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
       '<label>Fecha<input name="fecha" type="date" value="' + esc(c.fecha || '') + '"></label>' +
-      '<label>Inductora<select name="indId">' + opciones(config().inductoras.map(function (i) {
-        return { v: i.id, t: i.nombre + ' (' + i.tolMin + '–' + i.tolMax + ')' };
-      }), c.indId) + '</select></label>' +
-      '<div class="fila2"><label>Peso mín. por pico (kg)<input name="pesoMin" inputmode="decimal" value="' + esc(c.pesoMin || '') + '"></label>' +
-      '<label>Peso máx. por pico (kg)<input name="pesoMax" inputmode="decimal" value="' + esc(c.pesoMax || '') + '"></label></div>' +
+      (conRango.length ? '<h3>Rangos de este lote</h3>' + conRango.map(function (it) {
+        var r = rangos[it.id] || {}, u = it.unidad ? ' (' + esc(it.unidad) + ')' : '';
+        return '<div class="fila2"><label>' + esc(it.nombre) + ': mín.' + u + '<input name="min-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.min || '') + '"></label>' +
+          '<label>' + esc(it.nombre) + ': máx.' + u + '<input name="max-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.max || '') + '"></label></div>';
+      }).join('') : '') +
       '<label>Inspector de Calidad<input name="checker" value="' + esc(c.checker || '') + '"></label>' +
-      (l ? '' : '<label>Pallets del control final<input name="pallets" type="number" min="0" max="200" value="12"></label>') +
+      (l ? '' : '<label>Cantidad de ' + esc(nombreUnidad(p, 2)) + ' del control final<input name="cantFinal" type="number" min="0" max="200" value="' + esc(p.cantFinal === undefined ? 12 : p.cantFinal) + '"></label>') +
       '<div class="acciones"><button class="btn" type="button" data-act="' + (l ? 'abrir' : 'inicio') + '" data-id="' + esc(ui.loteId || '') + '">Cancelar</button>' +
       '<button class="btn primario" type="submit">' + (l ? 'Guardar' : 'Crear lote') + '</button></div>' +
       '</form></section>';
   };
+
+  // Rangos cargados en el lote, para mostrar: "Peso por pico 10–11 kg".
+  function textoRangos(d) {
+    var r = d.cab.rangos || {};
+    return d.plantilla.linea.concat(d.plantilla.final).filter(function (it) {
+      return it.tipo === 'medicion' && it.tolerancia === 'lote' && r[it.id] && (r[it.id].min !== '' || r[it.id].max !== '');
+    }).map(function (it) { return it.nombre + ' ' + (r[it.id].min || '…') + '–' + (r[it.id].max || '…') + (it.unidad ? ' ' + it.unidad : ''); });
+  }
 
   // ── Pantalla del lote ──
 
@@ -364,94 +394,110 @@
     var l = Store.lote(ui.loteId);
     if (!l) return '<p class="vacio">El lote ya no está en esta tablet.</p><button class="btn" data-act="inicio">Volver</button>';
     var d = l.datos, c = d.cab, ed = editable(l);
-    var ind = inductora(c.indId);
     var cab = '<section class="tarjeta cab-lote"><div class="cab-fila">' +
       '<button class="btn chico" data-act="inicio">← Lotes</button>' +
       '<span class="li-estado estado-' + esc(d.estado) + '">' + esc(ESTADOS[d.estado]) + '</span></div>' +
       '<h2>' + esc(c.lote) + ' · ' + esc(c.prod) + '</h2>' +
-      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), ind && ind.nombre,
-        c.pesoMin ? 'Peso ' + c.pesoMin + '–' + c.pesoMax + ' kg' : ''].filter(Boolean).map(esc).join(' · ') + '</p>' +
+      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), d.plantilla.nombre].concat(textoRangos(d))
+        .filter(Boolean).map(esc).join(' · ') + '</p>' +
       (ed ? '<button class="btn chico" data-act="editar-cab">Editar datos</button>' : '') +
       (!ed ? '<p class="ayuda">Lote dictaminado: solo coordinación lo puede modificar.</p>' : '') + '</section>';
     return cab + '<fieldset class="planilla"' + (ed ? '' : ' disabled') + '>' +
-      seccionLinea(d, ind) + seccionFinal(d) + seccionHallazgos(d) + '</fieldset>' + seccionDictamen(l);
+      seccionUnidades('linea', d) + seccionUnidades('final', d) + seccionHallazgos(d) + '</fieldset>' + seccionDictamen(l);
   };
 
-  function botonesCheck(sec, i, campo, valor, campoRepro, repro) {
+  function botonesCheck(sec, i, item, valor, conRepro, repro) {
     var b = function (v, txt, cls) {
       return '<button type="button" class="chk ' + cls + (valor === v ? ' sel' : '') + '" data-act="check" data-sec="' + sec +
-        '" data-i="' + i + '" data-k="' + campo + '" data-v="' + v + '">' + txt + '</button>';
+        '" data-i="' + i + '" data-item="' + esc(item) + '" data-v="' + v + '">' + txt + '</button>';
     };
-    var r = valor === false
-      ? '<button type="button" class="chk repro' + (repro ? ' sel' : '') + '" data-act="repro" data-sec="' + sec + '" data-i="' + i +
-        '" data-k="' + campoRepro + '">↻ Reprocesado</button>'
-      : '';
-    return '<span class="chks">' + b(true, 'OK', 'ok') + b(false, 'NOK', 'nok') + r + '</span>';
+    return '<span class="chks">' + b(true, 'OK', 'ok') + b(false, 'NOK', 'nok') +
+      (valor === false && conRepro ? botonRepro(sec, i, item, repro) : '') + '</span>';
   }
 
-  function campo(sec, i, k, valor, etiqueta, attrs) {
-    return '<label>' + etiqueta + '<input data-sec="' + sec + '" data-i="' + i + '" data-k="' + k + '" value="' + esc(valor) + '" ' + (attrs || '') + '></label>';
+  function botonRepro(sec, i, item, repro) {
+    return '<button type="button" class="chk repro' + (repro ? ' sel' : '') + '" data-act="repro" data-sec="' + sec + '" data-i="' + i +
+      '" data-item="' + esc(item) + '">↻ Reprocesado</button>';
   }
 
-  function seccionLinea(d, ind) {
-    var cards = d.linea.map(function (p, i) { return cardLinea(d, ind, p, i); }).join('');
-    return '<section class="tarjeta"><h3>Control en línea <small>' + d.linea.length + ' pallets</small></h3>' + cards +
-      '<button type="button" class="btn" data-act="agregar-linea">+ Pallet</button></section>';
+  // Datos de la unidad que no son ítems de la plantilla (número, hora, cantidad, observación).
+  function campoUnidad(sec, i, campo, valor, etiqueta, attrs) {
+    return '<label>' + etiqueta + '<input data-sec="' + sec + '" data-i="' + i + '" data-campo="' + campo + '" value="' + esc(valor) + '" ' + (attrs || '') + '></label>';
   }
 
-  function derivadosLinea(d, ind, p) {
-    var peso = Reglas.pesoOK(p, d.cab);
-    var prom = Reglas.promedioPeso(p);
-    var sem = Reglas.semaforo(p.indVal, ind);
-    return {
-      peso: prom === null ? '' : 'Prom. ' + prom + ' kg ' + (peso === false ? '<b class="txt-nok">⚖ fuera de rango</b>' : peso ? '<b class="txt-ok">✓</b>' : ''),
-      sem: sem ? '<span class="sem ' + sem + '"></span>' : '',
-      estado: Reglas.estadoPalletLinea(p, d.cab)
-    };
+  function textoRango(it, cab) {
+    var r = Reglas.rango(it, cab);
+    if (!r) return '';
+    var u = it.unidad ? ' ' + it.unidad : '';
+    if (isNaN(r.min)) return 'máx. ' + r.max + u;
+    if (isNaN(r.max)) return 'mín. ' + r.min + u;
+    return r.min + '–' + r.max + u;
   }
 
-  function cardLinea(d, ind, p, i) {
-    var der = derivadosLinea(d, ind, p);
-    var s = 'linea';
-    return '<div class="pcard e-' + der.estado + '" id="cl-' + i + '">' +
-      '<div class="pcard-cab"><b>Pallet</b>' +
-      '<input class="corto" data-sec="linea" data-i="' + i + '" data-k="nPal" value="' + esc(p.nPal) + '" aria-label="Número de pallet">' +
-      '<input class="corto" type="time" data-sec="linea" data-i="' + i + '" data-k="hora" value="' + esc(p.hora) + '" aria-label="Hora">' +
-      '<button type="button" class="btn chico" data-act="hora" data-i="' + i + '">Ahora</button>' +
-      '<button type="button" class="btn chico peligro" data-act="quitar-linea" data-i="' + i + '" aria-label="Quitar pallet">✕</button></div>' +
-      '<div class="grupo"><span class="g-tit">Peso por pico (kg)</span><div class="fila4">' +
-      Reglas.PICOS.map(function (k, n) { return campo(s, i, k, p[k], 'P' + (n + 1), 'inputmode="decimal"'); }).join('') +
-      '</div><span class="der-peso">' + der.peso + '</span></div>' +
-      '<div class="grupo"><span class="g-tit">Identificación</span><div class="fila4">' +
-      campo(s, i, 'lote', p.lote, 'Lote') + campo(s, i, 'codProd', p.codProd, 'Código') +
-      campo(s, i, 'fProd', p.fProd, 'F. prod.', 'type="date"') + campo(s, i, 'fVenc', p.fVenc, 'F. venc.', 'type="date"') + '</div></div>' +
-      '<div class="grupo"><span class="g-tit">Inducción</span><div class="fila-check">' +
-      botonesCheck(s, i, 'indOK', p.indOK, 'repro', p.repro) +
-      '<label class="inline">Valor<input class="corto" inputmode="decimal" data-sec="linea" data-i="' + i + '" data-k="indVal" value="' + esc(p.indVal) + '"></label>' +
-      '<span class="der-sem">' + der.sem + '</span></div></div>' +
-      '<div class="grupo checks3">' +
-      '<div><span class="g-tit">QR</span>' + botonesCheck(s, i, 'qrLineaOK', p.qrLineaOK, 'qrRepro', p.qrRepro) + '</div>' +
-      '<div><span class="g-tit">Packaging</span>' + botonesCheck(s, i, 'packOK', p.packOK, 'packRepro', p.packRepro) + '</div>' +
-      '<div><span class="g-tit">Paletizado</span>' + botonesCheck(s, i, 'pltOK', p.pltOK, 'pltRepro', p.pltRepro) + '</div></div>' +
-      campo(s, i, 'obs', p.obs, 'Observación') + '</div>';
+  // Lo que se calcula de una medición: promedio, si está fuera de rango, semáforo y el
+  // botón de reproceso. Se vuelve a calcular mientras se tipea.
+  function derivadoMedicion(sec, i, it, u, cab) {
+    var e = Reglas.evaluar(it, u.v[it.id], u.r[it.id], cab);
+    var n = Reglas.lecturas(it, u.v[it.id]).length;
+    return (e.sem ? '<span class="sem ' + e.sem + '"></span>' : '') +
+      (e.promedio !== null && n > 1 ? 'Prom. ' + e.promedio + (it.unidad ? ' ' + esc(it.unidad) : '') + ' ' : '') +
+      (e.estado === 'nok' ? '<b class="txt-nok">fuera de rango</b>' : e.estado === 'repro' ? '<b class="txt-warn">reprocesado</b>' :
+        e.estado === 'ok' && Reglas.rango(it, cab) ? '<b class="txt-ok">✓</b>' : '') +
+      ((e.estado === 'nok' || e.estado === 'repro') && it.reproceso ? ' ' + botonRepro(sec, i, it.id, u.r[it.id]) : '');
   }
 
-  function seccionFinal(d) {
-    var f = d.final;
-    var cards = f.pallets.map(function (p, i) {
-      var e = Reglas.estadoPalletFinal(p);
-      return '<div class="pcard e-' + e + '" id="cf-' + i + '"><div class="pcard-cab"><b>Pallet ' + (i + 1) + '</b>' +
-        '<button type="button" class="btn chico" data-act="todo-ok" data-i="' + i + '">✓ Todo OK</button>' +
-        '<button type="button" class="btn chico peligro" data-act="quitar-final" data-i="' + i + '" aria-label="Quitar pallet">✕</button></div>' +
-        '<div class="checks4">' + Reglas.CHECKS_FINAL.map(function (c) {
-          return '<div><span class="g-tit">' + esc(c.nombre) + '</span>' + botonesCheck('final', i, c.campo, p[c.campo], c.repro, p[c.repro]) + '</div>';
+  function htmlItem(sec, i, it, u, cab) {
+    var v = u.v[it.id];
+    var datos = 'data-sec="' + sec + '" data-i="' + i + '" data-item="' + esc(it.id) + '"';
+    if (it.tipo === 'okNok') {
+      return '<div class="it it-ok"><span class="g-tit">' + esc(it.nombre) + '</span>' + botonesCheck(sec, i, it.id, v, it.reproceso, u.r[it.id]) + '</div>';
+    }
+    if (it.tipo === 'medicion') {
+      var ls = Reglas.lecturas(it, v);
+      var rango = textoRango(it, cab);
+      return '<div class="it it-med"><span class="g-tit">' + esc(it.nombre) + (it.unidad ? ' (' + esc(it.unidad) + ')' : '') +
+        (rango ? ' · <span class="rango">' + esc(rango) + '</span>' : '') + '</span>' +
+        '<div class="lecturas">' + ls.map(function (x, j) {
+          return '<input ' + datos + ' data-l="' + j + '" inputmode="decimal" value="' + esc(x) + '" aria-label="' + esc(it.nombre) + ' ' + (j + 1) + '"' +
+            (ls.length > 1 ? ' placeholder="' + (j + 1) + '"' : '') + '>';
         }).join('') + '</div>' +
-        '<div class="fila2">' + campo('final', i, 'litrosParcial', p.litrosParcial, 'Litros (si difiere)', 'inputmode="decimal"') +
-        campo('final', i, 'obs', p.obs, 'Observación') + '</div></div>';
-    }).join('');
-    return '<section class="tarjeta"><h3>Control final <small>' + f.pallets.length + ' pallets</small></h3>' +
-      '<label>Litros por pallet<input class="corto" inputmode="decimal" data-sec="cf" data-i="0" data-k="ltsPorPallet" value="' + esc(f.ltsPorPallet) + '"></label>' +
-      cards + '<button type="button" class="btn" data-act="agregar-final">+ Pallet</button></section>';
+        '<span class="der" id="der-' + sec + '-' + i + '-' + esc(it.id) + '">' + derivadoMedicion(sec, i, it, u, cab) + '</span></div>';
+    }
+    return '<label class="it">' + esc(it.nombre) + '<input ' + datos + (it.tipo === 'fecha' ? ' type="date"' : '') + ' value="' + esc(v || '') + '"></label>';
+  }
+
+  function estadoUnidad(sec, d, u) {
+    return sec === 'linea' ? Reglas.estadoUnidadLinea(d.plantilla.linea, u, d.cab) : Reglas.estadoUnidadFinal(d.plantilla.final, u, d.cab);
+  }
+
+  function cardUnidad(sec, d, u, i) {
+    var p = d.plantilla, items = p[sec];
+    var cabeza = sec === 'linea'
+      ? '<b>' + esc(p.unidad) + '</b>' +
+        '<input class="corto" data-sec="linea" data-i="' + i + '" data-campo="n" value="' + esc(u.n) + '" aria-label="Número de ' + esc(nombreUnidad(p, 1)) + '">' +
+        '<input class="corto" type="time" data-sec="linea" data-i="' + i + '" data-campo="hora" value="' + esc(u.hora) + '" aria-label="Hora">' +
+        '<button type="button" class="btn chico" data-act="hora" data-i="' + i + '">Ahora</button>'
+      : '<b>' + esc(p.unidad) + ' ' + (i + 1) + '</b>' +
+        (items.some(function (it) { return it.tipo === 'okNok'; }) ? '<button type="button" class="btn chico" data-act="todo-ok" data-i="' + i + '">✓ Todo OK</button>' : '');
+    return '<div class="pcard e-' + estadoUnidad(sec, d, u) + '" id="' + (sec === 'linea' ? 'cl-' : 'cf-') + i + '">' +
+      '<div class="pcard-cab">' + cabeza +
+      '<button type="button" class="btn chico peligro" data-act="quitar-unidad" data-sec="' + sec + '" data-i="' + i + '" aria-label="Quitar">✕</button></div>' +
+      '<div class="items">' + items.map(function (it) { return htmlItem(sec, i, it, u, d.cab); }).join('') + '</div>' +
+      '<div class="fila2">' +
+      (sec === 'final' && p.cantidad ? campoUnidad(sec, i, 'cant', u.cant, 'Cantidad en ' + esc(p.cantidad) + ' (si difiere)', 'inputmode="decimal"') : '') +
+      campoUnidad(sec, i, 'obs', u.obs, 'Observación') + '</div></div>';
+  }
+
+  function seccionUnidades(sec, d) {
+    var p = d.plantilla;
+    var lista = sec === 'linea' ? d.linea : d.final.unidades;
+    if (!p[sec].length) return '';
+    var titulo = sec === 'linea' ? 'Control en línea' : 'Control final';
+    return '<section class="tarjeta"><h3>' + titulo + ' <small>' + lista.length + ' ' + esc(nombreUnidad(p, lista.length)) + '</small></h3>' +
+      (sec === 'final' && p.cantidad ? '<label>Cantidad por ' + esc(nombreUnidad(p, 1)) + ' (' + esc(p.cantidad) + ')' +
+        '<input class="corto" inputmode="decimal" data-sec="cf" data-i="0" data-campo="cantPorUnidad" value="' + esc(d.final.cantPorUnidad) + '"></label>' : '') +
+      lista.map(function (u, i) { return cardUnidad(sec, d, u, i); }).join('') +
+      '<button type="button" class="btn" data-act="agregar-unidad" data-sec="' + sec + '">+ ' + esc(p.unidad) + '</button></section>';
   }
 
   function seccionHallazgos(d) {
@@ -464,27 +510,31 @@
       '<button type="button" class="btn" data-act="agregar-hallazgo">Agregar observación</button></section>';
   }
 
+  function formatoCantidad(c, n, p) {
+    return c !== null ? (Math.round(c * 100) / 100) + ' ' + p.cantidad : n + ' ' + nombreUnidad(p, n);
+  }
+
   function seccionDictamen(l) {
-    var d = l.datos, f = d.final;
+    var d = l.datos, f = d.final, p = d.plantilla;
     var r = Reglas.resumenFinal(d);
     var sug = Reglas.sugerirDictamen(d);
-    var falt = Reglas.palletsFaltantes(d);
-    var cant = function (lts, pal) { return lts !== null ? Math.round(lts) + ' L' : pal + ' pallet(s)'; };
-    var resumen = '<div class="resumen"><div class="r-ok"><b>' + cant(r.ltsAprobados, r.aprobados) + '</b><span>Aprobado</span></div>' +
-      '<div class="r-nok"><b>' + cant(r.ltsRetenidos, r.retenidos) + '</b><span>Retenido</span></div>' +
+    var falt = Reglas.unidadesFaltantes(d);
+    var resumen = '<div class="resumen"><div class="r-ok"><b>' + esc(formatoCantidad(r.cantAprobada, r.aprobados, p)) + '</b><span>Aprobado</span></div>' +
+      '<div class="r-nok"><b>' + esc(formatoCantidad(r.cantRetenida, r.retenidos, p)) + '</b><span>Retenido</span></div>' +
       '<div class="r-pend"><b>' + r.pendientes + '</b><span>Sin controlar</span></div></div>';
     var desv = Reglas.desvios(d);
     var desvios = desv.length
       ? '<details><summary>Desvíos detectados (' + desv.length + ')</summary><ul class="desvios">' + desv.map(function (x) {
-          return '<li>' + esc(x.etapa) + ' · pallet ' + esc(x.pallet) + ' · ' + esc(x.control) +
+          return '<li>' + esc(x.etapa) + ' · ' + esc(nombreUnidad(p, 1)) + ' ' + esc(x.unidad) + ' · ' + esc(x.control) + ' ' + esc(x.detalle) +
             (x.corregido ? ' · <i>reprocesado</i>' : ' · <b class="txt-nok">abierto</b>') + (x.obs ? ' · ' + esc(x.obs) : '') + '</li>';
         }).join('') + '</ul><button type="button" class="btn chico" data-act="copiar-desvios">Copiar para el registro de NC</button></details>'
       : '';
     var acciones;
     if (d.estado === 'activo') {
       var bloqueado = falt.length && !esSuperior();
-      acciones = (falt.length ? '<p class="' + (bloqueado ? 'error' : 'ayuda') + '">Faltan completar ' + falt.length +
-          ' pallet(s) del control final' + (bloqueado ? '. Completalos o pedile a coordinación que dictamine.' : '. Coordinación puede dictaminar igual.') + '</p>' : '') +
+      acciones = (falt.length ? '<p class="' + (bloqueado ? 'error' : 'ayuda') + '">Faltan completar ' + falt.length + ' ' +
+          esc(nombreUnidad(p, falt.length)) + ' del control final' +
+          (bloqueado ? '. Completalos o pedile a coordinación que dictamine.' : '. Coordinación puede dictaminar igual.') + '</p>' : '') +
         '<div class="dictamenes">' + DICTAMENES.map(function (x) {
           return '<button class="btn dict ' + x.cls + (sug === x.v ? ' sugerido' : '') + '" data-act="dictaminar" data-v="' + x.v + '"' +
             (bloqueado ? ' disabled' : '') + '>' + x.txt + (sug === x.v ? '<small>sugerido</small>' : '') + '</button>';
@@ -493,7 +543,8 @@
       acciones = '<p class="dict-final ' + esc(d.estado) + '">' + esc(ESTADOS[d.estado]) + '</p>' +
         '<p class="ayuda">Dictaminó ' + esc(f.dictaminadoPor || '—') + (f.dictaminadoRol ? ' (' + esc(f.dictaminadoRol) + ')' : '') +
         ' · ' + esc(f.fechaDictamen || '') + '</p>' +
-        (d.cierreForzado ? '<p class="ayuda">⚠ Con ' + esc(d.cierreForzado.faltantes) + ' pallet(s) sin completar, autorizado por ' + esc(d.cierreForzado.por) + '</p>' : '') +
+        (d.cierreForzado ? '<p class="ayuda">⚠ Con ' + esc(d.cierreForzado.faltantes) + ' ' + esc(nombreUnidad(p, d.cierreForzado.faltantes)) +
+          ' sin completar, autorizado por ' + esc(d.cierreForzado.por) + '</p>' : '') +
         (esSuperior() ? '<button class="btn" data-act="reabrir">Reabrir lote</button>' : '');
     }
     return '<section class="tarjeta"><h3>Dictamen</h3>' + resumen + desvios + acciones +
@@ -533,23 +584,48 @@
       '<div class="fila2"><label>Elaboró<input name="docElab" value="' + esc(cfg.docElab) + '"></label>' +
       '<label>Aprobó<input name="docAprob" value="' + esc(cfg.docAprob) + '"></label></div>' +
       '<label>Líneas (separadas por coma)<input name="lineas" value="' + esc((cfg.lineas || []).join(', ')) + '"></label>' +
-      '<h3>Inductoras</h3><div id="inductoras">' + cfg.inductoras.map(filaInductora).join('') + '</div>' +
-      '<button type="button" class="btn chico" data-act="agregar-inductora">+ Inductora</button>' +
       '<button class="btn primario" type="submit">Guardar configuración</button></form></section>' +
+      seccionPlantillas() +
       '<section class="tarjeta" id="miembros"><h2>Personas</h2><p class="ayuda">Cargando…</p></section>' +
       '<button class="btn" data-act="inicio">Volver</button>';
     setTimeout(cargarMiembros, 0);
     return html;
   };
 
-  function filaInductora(ind) {
-    return '<div class="fila-ind" data-id="' + esc(ind.id) + '">' +
-      '<label>Nombre<input name="ind-nombre" required value="' + esc(ind.nombre) + '"></label>' +
-      '<label>Mín.<input name="ind-min" inputmode="decimal" required value="' + esc(ind.tolMin) + '"></label>' +
-      '<label>Máx.<input name="ind-max" inputmode="decimal" required value="' + esc(ind.tolMax) + '"></label>' +
-      '<label>Unidad<input name="ind-unidad" value="' + esc(ind.unidad || '') + '"></label>' +
-      '<label class="inline"><input type="checkbox" name="ind-sem"' + (ind.semaforo !== false ? ' checked' : '') + '> Semáforo</label>' +
-      '<button type="button" class="btn chico peligro" data-act="quitar-inductora">✕</button></div>';
+  // Lista de plantillas en ⚙ y el botón para crear una a partir de un ejemplo por rubro.
+  function seccionPlantillas() {
+    var ps = plantillasEmpresa();
+    var ejemplos = Object.keys(Reglas.EJEMPLOS).map(function (k) { return { v: k, t: Reglas.EJEMPLOS[k].rubro }; });
+    return '<section class="tarjeta" id="plantillas"><h2>Plantillas de control</h2>' +
+      '<p class="ayuda">Qué se controla en cada lote: mediciones con tolerancia, OK/NOK, datos y fechas. ' +
+      'Armá una por tipo de producto o de línea; al crear un lote se elige cuál usar.</p>' +
+      ps.map(function (p, i) {
+        var n = p.linea.length + p.final.length;
+        return '<div class="fila-plantilla"><span><b>' + esc(p.nombre) + '</b><small>' + n + ' ítem' + (n === 1 ? '' : 's') +
+          ' · por ' + esc(nombreUnidad(p, 1)) + '</small></span>' +
+          '<button class="btn chico" data-act="editar-plantilla" data-i="' + i + '">Editar</button>' +
+          '<button class="btn chico" data-act="duplicar-plantilla" data-i="' + i + '">Duplicar</button>' +
+          (ps.length > 1 ? '<button class="btn chico peligro" data-act="borrar-plantilla" data-i="' + i + '">Borrar</button>' : '') + '</div>';
+      }).join('') +
+      '<h3>Nueva plantilla</h3><div class="fila2"><label>Empezar desde el ejemplo<select id="ejemplo-plantilla">' +
+      opciones(ejemplos, 'blanco') + '</select></label>' +
+      '<button class="btn" data-act="nueva-plantilla">+ Nueva plantilla</button></div></section>';
+  }
+
+  pantallas.plantilla = function () { return Editor.html(ui.edit, ui.editIdx < 0); };
+
+  // Guarda la lista de plantillas en la configuración de la empresa.
+  async function guardarPlantillas(lista) {
+    var cfg = Object.assign({}, config(), { plantillas: lista });
+    delete cfg.inductoras; // del formato anterior: ya quedaron convertidas en plantilla
+    await Nube.guardarEmpresa(perfil().empresaId, perfil().empresa, cfg);
+    Store.setPerfil(Object.assign({}, perfil(), { config: cfg }));
+  }
+
+  // Antes de cualquier cambio en el editor se lee lo tipeado, para no perderlo al redibujar.
+  function leerEditor() {
+    var f = document.querySelector('[data-form="plantilla"]');
+    if (f) ui.edit = Editor.leer(f, ui.edit);
   }
 
   async function cargarMiembros() {
@@ -603,32 +679,38 @@
     return input.type === 'checkbox' ? input.checked : input.value;
   }
 
+  function unidadDe(d, sec, i) { return sec === 'linea' ? d.linea[i] : d.final.unidades[i]; }
+  function itemDe(d, sec, id) { return d.plantilla[sec].filter(function (it) { return it.id === id; })[0]; }
+
   // Al tipear no se redibuja la pantalla (se perdería el foco): solo se
   // actualizan los indicadores de esa tarjeta.
   function alEscribir(input) {
-    var sec = input.dataset.sec, i = Number(input.dataset.i), k = input.dataset.k, v = valorCampo(input);
+    var sec = input.dataset.sec, i = Number(input.dataset.i), campo = input.dataset.campo, id = input.dataset.item, v = input.value;
     cambiarLote(function (d) {
-      if (sec === 'linea') d.linea[i][k] = v;
-      else if (sec === 'final') d.final.pallets[i][k] = v;
-      else if (sec === 'cf') d.final[k] = v;
+      if (sec === 'cf') { d.final[campo] = v; return; }
+      var u = unidadDe(d, sec, i);
+      if (campo) { u[campo] = v; return; }
+      var it = itemDe(d, sec, id);
+      if (it.tipo === 'medicion') {
+        var ls = Reglas.lecturas(it, u.v[id]);
+        ls[Number(input.dataset.l)] = v;
+        u.v[id] = ls;
+      } else u.v[id] = v;
     }, false);
-    var l = Store.lote(ui.loteId);
-    if (sec === 'linea') {
-      var der = derivadosLinea(l.datos, inductora(l.datos.cab.indId), l.datos.linea[i]);
-      var card = document.getElementById('cl-' + i);
-      card.className = 'pcard e-' + der.estado;
-      card.querySelector('.der-peso').innerHTML = der.peso;
-      card.querySelector('.der-sem').innerHTML = der.sem;
-    }
+    if (sec === 'cf' || campo) return;
+    var d = Store.lote(ui.loteId).datos, u = unidadDe(d, sec, i), it = itemDe(d, sec, id);
+    document.getElementById((sec === 'linea' ? 'cl-' : 'cf-') + i).className = 'pcard e-' + estadoUnidad(sec, d, u);
+    var der = document.getElementById('der-' + sec + '-' + i + '-' + id);
+    if (der && it.tipo === 'medicion') der.innerHTML = derivadoMedicion(sec, i, it, u, d.cab);
   }
 
   async function dictaminar(tipo) {
     var l = Store.lote(ui.loteId);
-    var falt = Reglas.palletsFaltantes(l.datos);
+    var falt = Reglas.unidadesFaltantes(l.datos);
     var txt = DICTAMENES.filter(function (x) { return x.v === tipo; })[0].txt;
     if (falt.length && !esSuperior()) return;
     var msg = falt.length
-      ? 'Faltan completar ' + falt.length + ' pallet(s) del control final.\n¿Dictaminar "' + txt + '" igual? Queda registrado que lo autorizaste.'
+      ? 'Faltan completar ' + falt.length + ' ' + nombreUnidad(l.datos.plantilla, falt.length) + ' del control final.\n¿Dictaminar "' + txt + '" igual? Queda registrado que lo autorizaste.'
       : '¿Dictaminar el lote como "' + txt + '"?';
     if (!confirm(msg)) return;
     var p = perfil();
@@ -649,12 +731,12 @@
   var acciones = {
     inicio: function () { ir('inicio'); },
     tab: function (b) { ir('inicio', { tab: b.dataset.tab, resultados: null }); },
-    nuevo: function () { ir('nuevo', { loteId: null }); },
+    nuevo: function () { ir('nuevo', { loteId: null, borrador: null }); },
     abrir: function (b) {
       if (!b.dataset.id) return ir('inicio');
       if (b.dataset.remoto && !Store.lote(b.dataset.id)) {
         var f = (ui.resultados || []).filter(function (x) { return x.id === b.dataset.id; })[0];
-        if (f) { Store.aplicarRemoto(f); Store.guardar(); }
+        if (f) { Store.aplicarRemoto(f); Store.guardar(); migrarLotesViejos(); }
       }
       ir('lote', { loteId: b.dataset.id });
     },
@@ -670,47 +752,45 @@
     'limpiar-busqueda': function () { ir('inicio', { resultados: null, busqueda: '' }); },
 
     check: function (b) {
-      var sec = b.dataset.sec, i = Number(b.dataset.i), k = b.dataset.k, v = b.dataset.v === 'true';
+      var sec = b.dataset.sec, i = Number(b.dataset.i), id = b.dataset.item, v = b.dataset.v === 'true';
       cambiarLote(function (d) {
-        var p = sec === 'linea' ? d.linea[i] : d.final.pallets[i];
-        p[k] = p[k] === v ? null : v; // tocar el mismo otra vez lo deja sin marcar
-        if (p[k] !== false) {
-          var c = (sec === 'linea' ? Reglas.CHECKS_LINEA : Reglas.CHECKS_FINAL).filter(function (x) { return x.campo === k; })[0];
-          if (c) p[c.repro] = false;
-        }
+        var u = unidadDe(d, sec, i);
+        u.v[id] = u.v[id] === v ? null : v; // tocar el mismo otra vez lo deja sin marcar
+        if (u.v[id] !== false) u.r[id] = false;
       });
     },
     repro: function (b) {
-      var sec = b.dataset.sec, i = Number(b.dataset.i), k = b.dataset.k;
-      cambiarLote(function (d) { var p = sec === 'linea' ? d.linea[i] : d.final.pallets[i]; p[k] = !p[k]; });
+      var sec = b.dataset.sec, i = Number(b.dataset.i), id = b.dataset.item;
+      cambiarLote(function (d) { var u = unidadDe(d, sec, i); u.r[id] = !u.r[id]; });
     },
     'todo-ok': function (b) {
       var i = Number(b.dataset.i);
       cambiarLote(function (d) {
-        Reglas.CHECKS_FINAL.forEach(function (c) { d.final.pallets[i][c.campo] = true; d.final.pallets[i][c.repro] = false; });
+        var u = d.final.unidades[i];
+        d.plantilla.final.forEach(function (it) { if (it.tipo === 'okNok') { u.v[it.id] = true; u.r[it.id] = false; } });
       });
     },
     hora: function (b) {
       var i = Number(b.dataset.i), t = new Date();
       cambiarLote(function (d) { d.linea[i].hora = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); });
     },
-    'agregar-linea': function () {
+    'agregar-unidad': function (b) {
+      var sec = b.dataset.sec;
       cambiarLote(function (d) {
-        var ult = d.linea[d.linea.length - 1];
-        var nuevo = Reglas.nuevoPalletLinea(d.linea.length + 1);
-        // La identificación suele repetirse pallet a pallet: se copia del anterior.
-        if (ult) ['lote', 'codProd', 'fProd', 'fVenc'].forEach(function (k) { nuevo[k] = ult[k]; });
-        d.linea.push(nuevo);
+        var lista = sec === 'linea' ? d.linea : d.final.unidades;
+        var nueva = Reglas.nuevaUnidad(lista.length + 1);
+        // Los datos escritos (lote, código, fechas) suelen repetirse: se copian de la anterior.
+        var ult = lista[lista.length - 1];
+        if (ult && sec === 'linea') d.plantilla.linea.forEach(function (it) {
+          if ((it.tipo === 'texto' || it.tipo === 'fecha') && ult.v[it.id]) nueva.v[it.id] = ult.v[it.id];
+        });
+        lista.push(nueva);
       });
     },
-    'quitar-linea': function (b) {
-      if (!confirm('¿Quitar este pallet del control en línea?')) return;
-      cambiarLote(function (d) { d.linea.splice(Number(b.dataset.i), 1); });
-    },
-    'agregar-final': function () { cambiarLote(function (d) { d.final.pallets.push(Reglas.nuevoPalletFinal()); }); },
-    'quitar-final': function (b) {
-      if (!confirm('¿Quitar este pallet del control final?')) return;
-      cambiarLote(function (d) { d.final.pallets.splice(Number(b.dataset.i), 1); });
+    'quitar-unidad': function (b) {
+      var sec = b.dataset.sec, p = Store.lote(ui.loteId).datos.plantilla;
+      if (!confirm('¿Quitar este ' + nombreUnidad(p, 1) + ' del control ' + (sec === 'linea' ? 'en línea' : 'final') + '?')) return;
+      cambiarLote(function (d) { (sec === 'linea' ? d.linea : d.final.unidades).splice(Number(b.dataset.i), 1); });
     },
     'agregar-hallazgo': function () {
       var t = document.getElementById('nuevo-hallazgo').value.trim();
@@ -742,8 +822,8 @@
     'copiar-desvios': function () {
       var l = Store.lote(ui.loteId), c = l.datos.cab;
       var txt = Reglas.desvios(l.datos).map(function (x) {
-        return [Reglas.fechaLarga(c.fecha), c.lote, c.cliente, c.prod, x.etapa, 'Pallet ' + x.pallet, x.control,
-          x.corregido ? 'Reprocesado' : 'Abierto', x.obs].join('\t');
+        return [Reglas.fechaLarga(c.fecha), c.lote, c.cliente, c.prod, x.etapa, l.datos.plantilla.unidad + ' ' + x.unidad,
+          x.control + ' ' + x.detalle, x.corregido ? 'Reprocesado' : 'Abierto', x.obs].join('\t');
       }).join('\n');
       navigator.clipboard.writeText(txt).then(function () { aviso('Desvíos copiados: pegalos en el registro de NC'); },
         function () { aviso('No se pudo copiar'); });
@@ -801,11 +881,43 @@
       a.click();
       URL.revokeObjectURL(a.href);
     },
-    'agregar-inductora': function () {
-      var cont = document.getElementById('inductoras');
-      cont.insertAdjacentHTML('beforeend', filaInductora({ id: 'I' + Date.now().toString(36), nombre: '', tolMin: '', tolMax: '', unidad: '', semaforo: true }));
+    'nueva-plantilla': function () {
+      ir('plantilla', { edit: Reglas.plantillaEjemplo(document.getElementById('ejemplo-plantilla').value), editIdx: -1 });
     },
-    'quitar-inductora': function (b) { b.closest('.fila-ind').remove(); },
+    'editar-plantilla': function (b) {
+      ir('plantilla', { edit: Reglas.copia(plantillasEmpresa()[Number(b.dataset.i)]), editIdx: Number(b.dataset.i) });
+    },
+    'duplicar-plantilla': function (b) {
+      var p = Reglas.copia(plantillasEmpresa()[Number(b.dataset.i)]);
+      p.id = 'p' + Date.now().toString(36);
+      p.nombre += ' (copia)';
+      ir('plantilla', { edit: p, editIdx: -1 });
+    },
+    'borrar-plantilla': async function (b) {
+      var ps = plantillasEmpresa().slice(), i = Number(b.dataset.i);
+      if (!confirm('¿Borrar la plantilla "' + ps[i].nombre + '"? Los lotes ya creados con ella no cambian.')) return;
+      ps.splice(i, 1);
+      try { await guardarPlantillas(ps); aviso('Plantilla borrada'); dibujar(); }
+      catch (e) { aviso(e.message); }
+    },
+    'item-agregar': function (b) {
+      leerEditor();
+      ui.edit[b.dataset.sec].push({ id: Reglas.nuevoId(), nombre: '', tipo: 'okNok', reproceso: true, obligatorio: true });
+      dibujar();
+      var items = document.querySelectorAll('.ed-item[data-sec="' + b.dataset.sec + '"]');
+      items[items.length - 1].querySelector('[name="nombre"]').focus();
+    },
+    'item-quitar': function (b) {
+      leerEditor();
+      ui.edit[b.dataset.sec].splice(Number(b.dataset.i), 1);
+      dibujar();
+    },
+    'item-mover': function (b) {
+      leerEditor();
+      var lista = ui.edit[b.dataset.sec], i = Number(b.dataset.i), j = i + Number(b.dataset.d);
+      var x = lista[i]; lista[i] = lista[j]; lista[j] = x;
+      dibujar();
+    },
     activo: async function (b) {
       try { await Nube.cambiarMiembro(perfil().empresaId, b.dataset.user, { activo: b.dataset.v === 'true' }); cargarMiembros(); }
       catch (e) { aviso(e.message); }
@@ -847,19 +959,36 @@
       } catch (e) { ir('empresa', { mensaje: e.message }); }
     },
     cabecera: function (f) {
+      var l = ui.loteId ? Store.lote(ui.loteId) : null;
+      var ps = plantillasEmpresa();
+      var plantilla = l ? l.datos.plantilla : (ps.filter(function (x) { return f.plantilla && x.id === f.plantilla.value; })[0] || ps[0]);
+      var rangos = {};
+      [].forEach.call(f.querySelectorAll('[name^="min-"]'), function (inp) {
+        var id = inp.name.slice(4);
+        rangos[id] = { min: inp.value.trim(), max: f.querySelector('[name="max-' + id + '"]').value.trim() };
+      });
       var cab = {
         prod: f.prod.value.trim(), lote: f.lote.value.trim(), cliente: Reglas.normalizarCliente(f.cliente.value),
-        linea: f.linea.value.trim(), fecha: f.fecha.value, indId: f.indId.value,
-        pesoMin: f.pesoMin.value.trim(), pesoMax: f.pesoMax.value.trim(), checker: f.checker.value.trim()
+        linea: f.linea.value.trim(), fecha: f.fecha.value, checker: f.checker.value.trim(), rangos: rangos
       };
-      if (ui.loteId) {
+      ui.borrador = null;
+      if (l) {
         cambiarLote(function (d) { d.cab = cab; }, false);
       } else {
-        var n = Math.max(0, Math.min(200, parseInt(f.pallets.value, 10) || 0));
-        ui.loteId = Store.crear(Reglas.nuevoLote(cab, n));
+        var n = Math.max(0, Math.min(200, parseInt(f.cantFinal.value, 10) || 0));
+        ui.loteId = Store.crear(Reglas.nuevoLote(cab, plantilla, n));
         programarSync();
       }
       ir('lote', { loteId: ui.loteId });
+    },
+    plantilla: async function (f) {
+      ui.edit = Editor.leer(f, ui.edit);
+      var problema = Reglas.validarPlantilla(ui.edit);
+      if (problema) return aviso(problema);
+      var ps = plantillasEmpresa().slice();
+      if (ui.editIdx < 0) ps.push(ui.edit); else ps[ui.editIdx] = ui.edit;
+      try { await guardarPlantillas(ps); aviso('Plantilla guardada'); ir('config'); }
+      catch (e) { aviso(e.message); }
     },
     buscar: async function (f) {
       ui.busqueda = f.q.value.trim();
@@ -876,20 +1005,13 @@
       } catch (e) { aviso(e.message); }
     },
     config: async function (f) {
-      var inductoras = [].map.call(document.querySelectorAll('.fila-ind'), function (fila) {
-        var v = function (n) { return fila.querySelector('[name="' + n + '"]'); };
-        return { id: fila.dataset.id, nombre: v('ind-nombre').value.trim(), tolMin: Reglas.numero(v('ind-min').value),
-          tolMax: Reglas.numero(v('ind-max').value), unidad: v('ind-unidad').value.trim(), semaforo: v('ind-sem').checked };
-      });
-      if (inductoras.some(function (i) { return isNaN(i.tolMin) || isNaN(i.tolMax) || i.tolMin > i.tolMax; })) {
-        return aviso('Revisá las tolerancias: el mínimo tiene que ser menor o igual al máximo.');
-      }
       var cfg = Object.assign({}, config(), {
         docCodigo: f.docCodigo.value.trim(), docVersion: f.docVersion.value.trim(),
         docElab: f.docElab.value.trim(), docAprob: f.docAprob.value.trim(),
         lineas: f.lineas.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean),
-        inductoras: inductoras
+        plantillas: plantillasEmpresa()
       });
+      delete cfg.inductoras;
       try {
         await Nube.guardarEmpresa(perfil().empresaId, f.nombre.value.trim(), cfg);
         Store.setPerfil(Object.assign({}, perfil(), { empresa: f.nombre.value.trim(), config: cfg }));
@@ -928,6 +1050,15 @@
 
   document.addEventListener('change', async function (ev) {
     var s = ev.target;
+    if (s.dataset && s.dataset.actChange === 'editor') { leerEditor(); dibujar(); return; }
+    if (s.dataset && s.dataset.actChange === 'plantilla-lote') {
+      // Se guarda lo ya escrito y se redibuja con los rangos de la plantilla elegida.
+      var f = s.form;
+      ui.borrador = { plantillaId: s.value, prod: f.prod.value, lote: f.lote.value, cliente: f.cliente.value,
+        linea: f.linea.value, fecha: f.fecha.value, checker: f.checker.value, rangos: {} };
+      dibujar();
+      return;
+    }
     if (s.dataset && s.dataset.actChange === 'rol') {
       try { await Nube.cambiarMiembro(perfil().empresaId, s.dataset.user, { rol: s.value }); aviso('Rol cambiado'); }
       catch (e) { aviso(e.message); cargarMiembros(); }

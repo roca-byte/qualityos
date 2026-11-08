@@ -28,17 +28,43 @@ Los datos de Firebase **no se migraron** (decisión del 16/10/2026): Supabase ar
 
 ## Cómo se guarda un lote
 
-Un lote es un documento JSON (`datos`) con la cabecera, el control en línea, el control
-final y las observaciones. Los nombres de campo (`p1..p4`, `indOK`, `qrRepro`…) son los de
-la planilla original para que quien la conoce se ubique.
+Un lote es un documento JSON (`datos`) con la cabecera, **una copia de su plantilla de
+control**, el control en línea, el control final y las observaciones (formato 2):
+
+```
+cab        producto, lote, cliente, línea, fecha, inspector y rangos del lote por ítem
+plantilla  copia: unidad ("Pallet"), cantidad ("L"), ítems de línea y de control final
+linea[]    una unidad por elemento: n, hora, v{itemId: valor}, r{itemId: reprocesado}, obs
+final      cantPorUnidad, unidades[] (igual que linea + cant), dictamen y quién lo firmó
+```
+
+## Plantillas de control
+
+Qué se controla no está fijo en el código: lo define la plantilla, para que la app sirva en
+cualquier rubro (alimentos, bebidas, químicos, cosmética…). Un ítem es de uno de 4 tipos:
+medición (número con unidad, N lecturas y tolerancia fija, por lote o ninguna), OK/NOK, texto o
+fecha. Una medición fuera de tolerancia cuenta como NOK; los OK/NOK y las mediciones pueden
+marcarse como reprocesados si la plantilla lo permite.
+
+- Las plantillas viven en la configuración de la empresa (`empresas.config.plantillas`) y se
+  editan en ⚙ (`js/editor.js`). Hay ejemplos por rubro en `Reglas.EJEMPLOS`.
+- **Cada lote guarda una copia** de su plantilla: editar o borrar una plantilla no cambia los
+  lotes ya hechos ni sus PDF.
+- Las reglas (`js/reglas.js`) y el servidor (`pallets_faltantes()`, migración 0004) leen los
+  ítems de esa copia. Para dictaminar tienen que estar completos los ítems **obligatorios** del
+  control final.
+- **Formato anterior** (campos fijos de agroquímicos e "inductoras"): `Reglas.migrarLote` lo
+  convierte a una plantilla equivalente. La conversión se hace en cada equipo sin subir nada;
+  el lote se sube en el formato nuevo la próxima vez que alguien con permiso lo edita. El
+  servidor entiende los dos formatos.
 
 En la base, además del JSON, se copian columnas para buscar y filtrar (número, producto,
 cliente, línea, fecha, estado, dictamen). Así se puede consultar con SQL o Power BI sin
 abrir el JSON.
 
-Se eligió un documento por lote (y no una tabla por pallet) porque simplifica mucho el
+Se eligió un documento por lote (y no una tabla por unidad) porque simplifica mucho el
 trabajo sin señal: un lote se edita entero en la tablet y se sube entero. Si más adelante
-hace falta analizar pallet por pallet, se puede armar una vista SQL sobre el JSON.
+hace falta analizar unidad por unidad, se puede armar una vista SQL sobre el JSON.
 
 ## Trabajo sin señal
 

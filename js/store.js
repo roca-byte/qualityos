@@ -107,6 +107,16 @@ var Store = (function () {
     guardar();
   }
 
+  // Reemplaza los datos de un lote SIN marcarlo para subir: lo usa la conversión de lotes del
+  // formato anterior, que es solo una forma distinta de guardar lo mismo. Se sube en el formato
+  // nuevo la próxima vez que alguien lo edite de verdad.
+  function convertir(id, datos) {
+    var reg = empresa().lotes[id];
+    if (!reg) return;
+    reg.datos = datos;
+    guardar();
+  }
+
   function borrar(id) {
     var reg = empresa().lotes[id];
     if (!reg) return;
@@ -198,7 +208,7 @@ var Store = (function () {
 
   return {
     perfil: perfil, setPerfil: setPerfil, guiaVista: guiaVista, marcarGuiaVista: marcarGuiaVista, reiniciarDemo: reiniciarDemo,
-    lotes: lotes, lote: lote, crear: crear, cambiar: cambiar, borrar: borrar,
+    lotes: lotes, lote: lote, crear: crear, cambiar: cambiar, convertir: convertir, borrar: borrar,
     pendientes: pendientes, confirmar: confirmar, conflicto: conflicto,
     conflictos: conflictos, resolverConflicto: resolverConflicto,
     aplicarRemoto: aplicarRemoto, guardar: guardar,

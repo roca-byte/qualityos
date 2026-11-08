@@ -194,3 +194,40 @@ reset role;
 set role authenticated;
 select prueba.debe_fallar($$select public.pallets_faltantes('{}'::jsonb)$$, 'permission denied');
 reset role;
+
+-- ── Plantillas: las unidades faltantes salen de los ítems obligatorios de la plantilla ──
+do $$
+declare
+  plantilla jsonb := '{"final":[
+    {"id":"qr","tipo":"okNok","obligatorio":true},
+    {"id":"temp","tipo":"medicion","obligatorio":true},
+    {"id":"obs","tipo":"texto","obligatorio":false}]}';
+  completa jsonb := '{"v":{"qr":false,"temp":["4.1","3.9"]}}';
+  sin_ok jsonb := '{"v":{"temp":["4.1","3.9"]}}';
+  lectura_vacia jsonb := '{"v":{"qr":true,"temp":["4.1",""]}}';
+begin
+  assert public.pallets_faltantes(jsonb_build_object('plantilla', plantilla,
+    'final', jsonb_build_object('unidades', jsonb_build_array(completa)))) = 0,
+    'un NOK es un dato cargado y lo no obligatorio no cuenta';
+  assert public.pallets_faltantes(jsonb_build_object('plantilla', plantilla,
+    'final', jsonb_build_object('unidades', jsonb_build_array(completa, sin_ok, lectura_vacia)))) = 2,
+    'falta el OK/NOK en una y una lectura en otra';
+  assert public.pallets_faltantes(prueba.lote(false)) = 1, 'el formato anterior se sigue entendiendo';
+end $$;
+
+-- Con plantilla, un inspector no puede dictaminar con unidades incompletas; coordinación sí.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","email":"beto@uno.com"}', false);
+set role authenticated;
+select prueba.debe_fallar(format($$select public.guardar_lote('22222222-2222-2222-2222-222222222222', %L, 0,
+  '{"formato":2,"estado":"aprobado","cab":{"prod":"Jugo","lote":"J-1"},
+    "plantilla":{"final":[{"id":"herm","tipo":"okNok","obligatorio":true}]},
+    "final":{"dictamen":"APROBADO","unidades":[{"v":{}}]}}'::jsonb)$$, :'e1'), 'Faltan pallets');
+do $$ begin
+  assert (public.guardar_lote('22222222-2222-2222-2222-222222222222', (select id from public.empresas), 0,
+    '{"formato":2,"estado":"aprobado","cab":{"prod":"Jugo","lote":"J-1"},
+      "plantilla":{"final":[{"id":"herm","tipo":"okNok","obligatorio":true}]},
+      "final":{"dictamen":"APROBADO","unidades":[{"v":{"herm":true}}]}}'::jsonb)->>'ok')::boolean,
+    'con la plantilla completa el inspector dictamina';
+end $$;
+select prueba.debe_fallar($$select public.valor_vacio('texto', '""')$$, 'permission denied');
+reset role;

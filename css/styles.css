@@ -168,9 +168,6 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 .desvios { font-size: 14px; padding-left: 18px; }
 
 /* ── Configuración ── */
-.fila-ind { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto auto; gap: 6px; align-items: end;
-  border-bottom: 1px solid var(--border); margin-bottom: 8px; }
-@media (max-width: 620px) { .fila-ind { grid-template-columns: 1fr 1fr; } }
 .fila-miembro { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0;
   border-bottom: 1px solid var(--border); }
 .fila-miembro span:first-child { flex: 1; }
@@ -289,3 +286,28 @@ a.btn { text-decoration: none; }
   border-bottom: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); font-size: 14px; }
 #franja-demo[hidden] { display: none; }
 #franja-demo .btn { min-height: 40px; }
+
+/* ── Ítems de la plantilla dentro de cada unidad (pallet, caja, muestra…) ── */
+.items { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-bottom: 6px; }
+.items .it { margin-bottom: 8px; }
+.it-ok, .it-med { grid-column: 1 / -1; }
+.it-ok { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.it-ok .g-tit { margin: 0; }
+.lecturas { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+.it-med .der { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; margin-top: 4px; min-height: 22px; }
+.it-med .der .chk { min-height: 40px; }
+.rango { text-transform: none; letter-spacing: 0; }
+.txt-warn { color: var(--warn); }
+@media (max-width: 520px) { .items { grid-template-columns: 1fr; } }
+
+/* ── ⚙ Plantillas y editor ── */
+.fila-plantilla { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.fila-plantilla span { flex: 1; min-width: 160px; }
+.fila-plantilla small { display: block; color: var(--muted); }
+.editor h3 { margin-top: 18px; }
+.ed-item { border: 1px solid var(--border); border-radius: var(--r); padding: 10px; margin-bottom: 10px; background: var(--surface2); }
+.ed-cab { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ed-cab b { flex: 1; color: var(--muted); }
+.ed-item label.inline { margin: 6px 0; }
+/* Los nombres de los ítems los escribe cada empresa ("pH", "°Brix"): se respetan tal cual. */
+.items .g-tit { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; }

@@ -3,13 +3,14 @@
 Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer junto con
 `CLAUDE.md` y `docs/DISENO.md`. Actualizar este archivo cuando algo se termine o cambie.
 
-## En curso / hecho
+## Hecho
 
-- **Etapa 1 · Plantillas de control** (pedida el 08/11/2026). Que la app sirva para cualquier
+- **Etapa 1 · Plantillas de control** (08/11/2026) — terminada. Que la app sirva para cualquier
   tipo de fabricación (alimentos, bebidas, químicos, agro, cosmética, envases…), no solo
   agroquímicos: el administrador define en ⚙ qué ítems se controlan en línea y en el control
   final (medición con tolerancia, OK/NOK, texto, fecha), con ejemplos por rubro para empezar.
-  Cada lote guarda una copia de la plantilla con la que se creó.
+  Cada lote guarda una copia de la plantilla con la que se creó. Ver "Plantillas de control"
+  en `docs/DISENO.md`. Prueba de punta a punta: `tests/e2e/plantillas.js`.
 
 ## Próximo
 

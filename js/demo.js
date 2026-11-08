@@ -160,50 +160,63 @@ var Demo = (function () {
 
   // ── Datos de ejemplo (ficticios) ──
 
+  // En el navegador Reglas ya está cargado; desde Node (tools/) se pide.
+  var R = typeof Reglas !== 'undefined' ? Reglas : require('./reglas.js');
+
+  function plantilla(clave, id) { var p = R.plantillaEjemplo(clave); p.id = id; return p; }
+
   var CONFIG_EJEMPLO = {
-    inductoras: [
-      { id: 'A', nombre: 'Inductora Línea 1', tolMin: 1.0, tolMax: 1.4, unidad: '', semaforo: true },
-      { id: 'B', nombre: 'Inductora Línea 2', tolMin: 0.9, tolMax: 1.3, unidad: '', semaforo: true }
-    ],
+    plantillas: [plantilla('agro', 'agro'), plantilla('alimentos', 'alimentos')],
     lineas: ['Env-01', 'Env-02', 'Env-04'],
     docCodigo: 'REG-01', docVersion: '03', docElab: 'Laura Gómez', docAprob: 'Coordinación de Calidad'
   };
 
-  // Cuatro lotes en distintos estados, armados con las mismas reglas de la app.
+  // Cinco lotes en distintos estados, armados con las mismas reglas de la app: cuatro de
+  // envasado de líquidos y uno de alimentos (otra plantilla, otros controles).
   function lotesEjemplo(empresaId) {
     var hoy = new Date();
-    var dia = function (n) { return Reglas.hoy(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n)); };
-    var ok = { idOK: true, qrOK: true, paletOK: true, indCFOK: true };
+    var dia = function (n) { return R.hoy(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n)); };
+    var agro = CONFIG_EJEMPLO.plantillas[0], alim = CONFIG_EJEMPLO.plantillas[1];
     var mas = function (a, b) { return Object.assign({}, a, b); };
-    var pl = function (n, extra) {
-      return Object.assign(Reglas.nuevoPalletLinea(n), {
-        hora: '0' + (6 + n) + ':1' + n, p1: '10.4', p2: '10.6', p3: '10.5', p4: '10.5',
-        lote: 'L-' + n, codProd: '7790123', fProd: dia(0), fVenc: dia(-365),
-        indOK: true, indVal: '1.2', qrLineaOK: true, packOK: true, pltOK: true
-      }, extra || {});
+    var unidad = function (n, v, r, extra) { return Object.assign(R.nuevaUnidad(n), { v: v, r: r || {} }, extra || {}); };
+    // Control en línea de líquidos: todo OK salvo lo que se pise con "cambios".
+    var pl = function (n, cambios, repro) {
+      return unidad(n, mas({
+        peso: ['10.4', '10.6', '10.5', '10.5'], loteEnv: 'L-' + n, codigo: '7790123', fprod: dia(0), fvenc: dia(-365),
+        ind: ['1.2'], qr: true, pack: true, plt: true
+      }, cambios), repro, { hora: '0' + (6 + n) + ':1' + n });
     };
-    var lote = function (cab, estado, dictamen, finales, linea, por) {
-      var l = Reglas.nuevoLote(Object.assign({ indId: 'A', pesoMin: '10', pesoMax: '11', checker: 'Laura Gómez' }, cab), 0);
+    var cfOk = { idPal: true, traz: true, estPal: true, indF: true };
+    var lote = function (p, cab, estado, dictamen, linea, finales, por) {
+      var l = R.nuevoLote(mas({ checker: 'Laura Gómez' }, cab), p, 0);
       l.linea = linea;
-      l.final.pallets = finales.map(function (f) { return Object.assign(Reglas.nuevoPalletFinal(), f); });
-      l.final.ltsPorPallet = '1000';
+      l.final.unidades = finales.map(function (f, i) { return unidad(i + 1, f[0] || {}, f[1]); });
+      l.final.cantPorUnidad = p === agro ? '1000' : '480';
       if (dictamen) {
         l.estado = estado; l.final.dictamen = dictamen;
-        l.final.fechaDictamen = Reglas.fechaLarga(cab.fecha) + ', 15:40';
+        l.final.fechaDictamen = R.fechaLarga(cab.fecha) + ', 15:40';
         l.final.dictaminadoPor = por;
         l.final.dictaminadoRol = por === 'Pablo Díaz' ? 'Coordinación' : 'Inspector de Calidad';
       }
       return l;
     };
+    var rangoPeso = { peso: { min: '10', max: '11' } };
     var datos = [
-      lote({ prod: 'Aceite girasol 1,5 L', lote: 'L-2611-014', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(0) },
-        'activo', null, [ok, ok, ok, {}, {}, {}], [pl(1), pl(2, { p3: '11.3' }), pl(3, { packOK: false, packRepro: true })]),
-      lote({ prod: 'Aceite oliva 500 ml', lote: 'L-2611-012', cliente: 'Almacén Central', linea: 'Env-01', fecha: dia(1) },
-        'aprobado', 'APROBADO', [ok, ok, ok, ok], [pl(1), pl(2)], 'Laura Gómez'),
-      lote({ prod: 'Vinagre de alcohol 1 L', lote: 'L-2611-009', cliente: 'Supermercados del Sur', linea: 'Env-02', fecha: dia(2) },
-        'aprobado_parcial', 'APROBADO_PARCIAL', [ok, ok, mas(ok, { qrOK: false }), ok], [pl(1)], 'Laura Gómez'),
-      lote({ prod: 'Aceite girasol 900 ml', lote: 'L-2611-007', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(3) },
-        'retenido', 'RETENIDO', [mas(ok, { indCFOK: false }), mas(ok, { indCFOK: false })], [pl(1, { indOK: false, indVal: '0.7' })], 'Pablo Díaz')
+      lote(agro, { prod: 'Aceite girasol 1,5 L', lote: 'L-2611-014', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(0), rangos: rangoPeso },
+        'activo', null, [pl(1), pl(2, { peso: ['10.4', '10.6', '11.3', '10.5'] }), pl(3, { pack: false }, { pack: true })],
+        [[cfOk], [cfOk], [cfOk], [], [], []]),
+      lote(alim, { prod: 'Yogur frutilla 190 g', lote: 'Y-2611-031', cliente: 'Almacén Central', linea: 'Env-01', fecha: dia(1),
+        rangos: { peso: { min: '188', max: '196' }, temp: { min: '2', max: '6' }, tempF: { min: '2', max: '6' } } },
+        'aprobado', 'APROBADO',
+        [unidad(1, { peso: ['190', '191', '189', '192', '190'], temp: ['4.1'], metales: true, sellado: true, rotulo: true, alergenos: true, visual: true }, {}, { hora: '08:05' }),
+         unidad(2, { peso: ['191', '190', '193', '190', '191'], temp: ['4.3'], metales: true, sellado: false, rotulo: true, alergenos: true, visual: true }, { sellado: true }, { hora: '09:05' })],
+        [[{ rotuloF: true, tempF: ['3.8'], envases: true, pallet: true }], [{ rotuloF: true, tempF: ['4.0'], envases: true, pallet: true }]], 'Laura Gómez'),
+      lote(agro, { prod: 'Aceite oliva 500 ml', lote: 'L-2611-012', cliente: 'Almacén Central', linea: 'Env-01', fecha: dia(1), rangos: rangoPeso },
+        'aprobado', 'APROBADO', [pl(1), pl(2)], [[cfOk], [cfOk], [cfOk], [cfOk]], 'Laura Gómez'),
+      lote(agro, { prod: 'Vinagre de alcohol 1 L', lote: 'L-2611-009', cliente: 'Supermercados del Sur', linea: 'Env-02', fecha: dia(2), rangos: rangoPeso },
+        'aprobado_parcial', 'APROBADO_PARCIAL', [pl(1)], [[cfOk], [cfOk], [mas(cfOk, { traz: false })], [cfOk]], 'Laura Gómez'),
+      lote(agro, { prod: 'Aceite girasol 900 ml', lote: 'L-2611-007', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(3), rangos: rangoPeso },
+        'retenido', 'RETENIDO', [pl(1, { ind: ['0.7'] })], [[mas(cfOk, { indF: false })], [mas(cfOk, { indF: false })]], 'Pablo Díaz')
     ];
     return datos.map(function (d, i) {
       return { id: '00000000-0000-4000-8000-00000000000' + i, empresa_id: empresaId, datos: d, version: 1,

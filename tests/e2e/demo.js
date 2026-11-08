@@ -61,7 +61,7 @@ function servidor() {
   await page.click('text=← Lotes');
   await page.click('button[data-tab="historial"]');
   await page.waitForSelector('.lote-item');
-  assert.equal(await page.locator('.lote-item').count(), 4, 'el lote dictaminado pasa al historial');
+  assert.equal(await page.locator('.lote-item').count(), 5, 'el lote dictaminado pasa al historial');
   await page.fill('input[name=q]', 'vinagre');
   await page.click('text=Buscar en todo el historial');
   await page.waitForSelector('text=Resultados del servidor');

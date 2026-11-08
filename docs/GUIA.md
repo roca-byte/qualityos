@@ -51,43 +51,50 @@ En la pantalla principal ves los lotes **En control** y el **Historial**. Tocá 
 
 <img src="img/03-inicio.png" alt="Lotes en control" width="300"> <img src="img/04-nuevo-lote.png" alt="Formulario de nuevo lote" width="300">
 
+- **Plantilla de control**: qué vas a controlar (si tu empresa tiene más de una, elegí la del
+  producto o la línea).
 - **Producto** y **N° de lote** son obligatorios.
-- **Inductora**: de ella salen las tolerancias del semáforo de inducción.
-- **Peso mín./máx. por pico**: con esto la app marca cada pico fuera de rango.
-- **Pallets del control final**: cuántos pallets vas a revisar al final (se pueden agregar o
-  quitar después).
+- **Rangos de este lote**: las mediciones que dependen del producto (por ejemplo el peso por
+  pico) piden acá su mínimo y máximo. Con eso la app marca lo que sale de rango.
+- **Cantidad del control final**: cuántas unidades (pallets, cajas, muestras…) vas a revisar al
+  final. Se pueden agregar o quitar después.
 
 ## 3. Control en línea
 
-Pallet por pallet, mientras la línea produce:
+Unidad por unidad (pallet, caja, muestra…, según la plantilla), mientras la línea produce. Lo que
+aparece depende de la plantilla; en el ejemplo de envasado de líquidos:
 
 - **Hora**: el botón **Ahora** la completa.
-- **Peso por pico** (P1 a P4): la app calcula el promedio y avisa **⚖ fuera de rango** si
-  algún pico se pasa del rango del lote.
-- **Identificación**: lote, código, fecha de producción y de vencimiento. Al agregar un pallet
-  se copian del anterior, así no tipeás lo mismo.
-- **Inducción**: OK/NOK y el valor medido. El círculo es el **semáforo** (verde dentro de
-  tolerancia, amarillo cerca, rojo lejos).
-- **QR, packaging y paletizado**: OK/NOK.
+- **Mediciones** (como el peso por pico, con 4 lecturas): la app calcula el promedio y avisa
+  **fuera de rango** si alguna lectura sale de la tolerancia. Si la medición tiene **semáforo**,
+  el círculo se pinta verde (dentro), amarillo (cerca) o rojo (lejos).
+- **Datos y fechas** (lote del envase, código, producción, vencimiento): al agregar una unidad se
+  copian de la anterior, así no tipeás lo mismo.
+- **OK / NOK** (QR, packaging, paletizado…).
 
 <img src="img/05-control-en-linea.png" alt="Pallet con un pico fuera de rango" width="300"> <img src="img/06-reproceso.png" alt="Pallet con packaging reprocesado" width="300">
 
 Si encontraste un NOK y **lo corregiste en el momento**, tocá **↻ Reprocesado**: queda
-registrado como desvío corregido (el pallet se pinta en naranja en vez de rojo).
+registrado como desvío corregido (la unidad se pinta en naranja en vez de rojo). Lo mismo
+para una medición fuera de rango que se corrigió, si la plantilla lo permite.
+
+En otra plantilla los controles son otros. Por ejemplo, en una de alimentos:
+
+<img src="img/17-lote-alimentos.png" alt="Muestra de un lote de alimentos" width="300">
 
 > Tocar otra vez un OK o NOK ya marcado lo deja sin marcar.
 
 ## 4. Control final
 
-Antes del despacho, revisá cada pallet: ID, trazabilidad/QR, estado del pallet e inducción.
-**✓ Todo OK** completa los cuatro de un toque. Cargá los **litros por pallet** una vez; si un
-pallet tiene otra cantidad, ponela en *Litros (si difiere)*.
+Antes del despacho, revisá cada unidad con lo que pida la plantilla. **✓ Todo OK** marca
+todos los OK/NOK de un toque. Si la plantilla lleva cantidad, cargá la **cantidad por unidad**
+una vez (por ejemplo 1000 L por pallet); si una tiene otra, ponela en *Cantidad (si difiere)*.
 
 <img src="img/07-control-final.png" alt="Control final" width="300">
 
 ## 5. Dictamen y registro
 
-Abajo de todo está el **Dictamen**: la app suma pallets y litros aprobados y retenidos y
+Abajo de todo está el **Dictamen**: la app suma unidades y cantidades aprobadas y retenidas y
 **sugiere** un resultado. Vos decidís:
 
 - **Aprobado**: todo el lote está conforme.
@@ -96,7 +103,7 @@ Abajo de todo está el **Dictamen**: la app suma pallets y litros aprobados y re
 
 <img src="img/08-dictamen.png" alt="Dictamen sugerido" width="300"> <img src="img/09-dictaminado.png" alt="Lote dictaminado" width="300">
 
-Si quedan pallets sin controlar, solo **Coordinación** puede dictaminar igual (y queda
+Si quedan unidades sin completar lo obligatorio, solo **Coordinación** puede dictaminar igual (y queda
 asentado quién lo autorizó). Una vez dictaminado, el lote queda cerrado para el Inspector de
 Calidad; Coordinación puede reabrirlo.
 
@@ -124,18 +131,43 @@ Tu bienvenida tiene otros pasos: configurar y armar el equipo.
 
 En **⚙**:
 
-- **Empresa**: nombre, código y versión del registro, quién elaboró y aprobó (salen en el PDF),
-  líneas e **inductoras** con su tolerancia mínima y máxima.
+- **Empresa**: nombre, código y versión del registro, quién elaboró y aprobó (salen en el PDF)
+  y líneas.
+- **Plantillas de control**: qué se controla en cada lote (ver abajo).
 - **Personas**: invitá por email con su rol, cambiá roles o desactivá a alguien que ya no
   trabaja. La persona invitada crea su cuenta con ese email (paso 1) y queda adentro.
 
 <img src="img/13-configuracion.png" alt="Configuración de la empresa" width="300"> <img src="img/14-personas.png" alt="Personas e invitaciones" width="300">
 
+### Plantillas de control
+
+Cada plantilla dice **qué se controla** en un tipo de lote. Podés tener varias (por producto o
+por línea); al crear el lote se elige cuál usar. **+ Nueva plantilla** arranca desde un ejemplo
+de tu rubro (agroquímicos, alimentos, bebidas, cosmética) o en blanco.
+
+<img src="img/15-plantillas.png" alt="Lista de plantillas" width="300"> <img src="img/16-editor-plantilla.png" alt="Editor de plantillas" width="300">
+
+En el editor:
+
+- **Qué se controla**: el nombre de la unidad (Pallet, Caja, Muestra…) en singular y plural, y
+  si lleva **cantidad** (L, kg, unid.) para sumar lo aprobado y lo retenido.
+- **Ítems del control en línea y del control final**, cada uno de un tipo:
+  - **OK / NOK**, y si permite marcarlo como *reprocesado*.
+  - **Medición**: unidad, cuántas lecturas por unidad y la **tolerancia**: fija (mínimo y máximo
+    en la plantilla), *se carga en cada lote* (para lo que depende del producto, como el peso) o
+    sin tolerancia (solo se registra). Opcional: semáforo.
+  - **Texto** o **fecha**.
+- En el control final, si cada ítem es **obligatorio para dictaminar**.
+- ↑ ↓ cambian el orden y ✕ quita el ítem.
+
+Los lotes ya creados **no cambian** si editás o borrás una plantilla: cada lote guarda una copia
+de la plantilla con la que se hizo.
+
 | Rol | Puede |
 |---|---|
 | **Inspector de Calidad** | Crear y controlar lotes. Dictaminar con el control final completo |
-| **Coordinación** | Además: dictaminar con pallets pendientes, reabrir o corregir lotes dictaminados, borrar lotes |
-| **Administración** | Además: configurar la empresa e invitar personas |
+| **Coordinación** | Además: dictaminar con unidades pendientes, reabrir o corregir lotes dictaminados, borrar lotes |
+| **Administración** | Además: configurar la empresa y las plantillas e invitar personas |
 
 ## 8. Sin señal
 

@@ -62,7 +62,7 @@ function servidor() {
   assert.match(await page.textContent('.pasos'), /Invitá a tu equipo/);
   await page.click('button[type=submit]:has-text("Empezar")');
   await page.waitForSelector('text=+ Nuevo lote');
-  assert.match(await page.textContent('main'), /cargá tus inductoras y líneas/, 'admin sin configurar: pista de ⚙');
+  assert.match(await page.textContent('main'), /armá tus plantillas de control/, 'admin sin configurar: pista de ⚙');
   assert.equal(await page.textContent('#empresa-nombre'), 'Planta <Prueba>', 'el nombre se muestra como texto, no HTML');
   paso('ingreso con error de clave, creación de empresa');
 
@@ -72,54 +72,53 @@ function servidor() {
   await page.fill('input[name=lote]', 'L-2026-001');
   await page.fill('input[name=cliente]', '  coca   cola SA ');
   await page.fill('input[name=linea]', 'Env-04');
-  await page.fill('input[name=pesoMin]', '10');
-  await page.fill('input[name=pesoMax]', '11');
-  await page.fill('input[name=pallets]', '2');
+  await page.fill('input[name=min-peso]', '10');
+  await page.fill('input[name=max-peso]', '11');
+  await page.fill('input[name=cantFinal]', '2');
   await page.click('text=Crear lote');
   await page.waitForSelector('text=Control en línea');
   assert.match(await page.textContent('.cab-lote .meta'), /Coca Cola SA/);
   paso('lote creado, cliente normalizado');
 
   // 3. Control en línea: peso fuera de rango, inducción con semáforo, texto peligroso
-  await page.fill('#cl-0 input[data-k=p1]', '10.5');
-  await page.fill('#cl-0 input[data-k=p2]', '11.6');
+  await page.fill('#cl-0 input[data-item=peso][data-l="0"]', '10.5');
+  await page.fill('#cl-0 input[data-item=peso][data-l="1"]', '11.6');
   await page.waitForSelector('#cl-0 >> text=fuera de rango');
   assert.match(await page.getAttribute('#cl-0', 'class'), /e-nok/);
-  await page.fill('#cl-0 input[data-k=p2]', '10.8');
-  await page.click('#cl-0 [data-k=indOK][data-v=true]');
-  await page.fill('#cl-0 input[data-k=indVal]', '1.2');
+  await page.fill('#cl-0 input[data-item=peso][data-l="1"]', '10.8');
+  await page.fill('#cl-0 input[data-item=ind]', '1.2');
   await page.waitForSelector('#cl-0 .sem.ok');
-  await page.click('#cl-0 [data-k=packOK][data-v=false]');
-  await page.click('#cl-0 [data-act=repro][data-k=packRepro]');
+  await page.click('#cl-0 [data-act=check][data-item=pack][data-v=false]');
+  await page.click('#cl-0 [data-act=repro][data-item=pack]');
   assert.match(await page.getAttribute('#cl-0', 'class'), /e-repro/);
-  await page.fill('#cl-0 input[data-k=obs]', '<img src=x onerror="window.__xss=1">');
+  await page.fill('#cl-0 input[data-campo=obs]', '<img src=x onerror="window.__xss=1">');
   await page.click('text=+ Pallet');
   assert.equal(await page.locator('.pcard[id^=cl-]').count(), 2);
   await foto('1-control-en-linea');
   await sincronizar();
   let srvLote = await servidorLote();
-  assert.ok(srvLote && srvLote.datos.linea[0].p1 === '10.5', 'el lote subió al servidor');
+  assert.ok(srvLote && srvLote.datos.linea[0].v.peso[0] === '10.5', 'el lote subió al servidor');
   paso('control en línea: peso, semáforo, reproceso; sube al servidor');
 
   // 4. Sin señal: se sigue trabajando y queda en la bandeja de salida
   await ctx.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await page.click('#cf-0 >> text=✓ Todo OK');
-  await page.click('#cf-1 [data-k=idOK][data-v=true]');
+  await page.click('#cf-1 [data-item=idPal][data-v=true]');
   await page.waitForSelector('#nube >> text=Sin señal · 1 por subir');
   await page.waitForSelector('text=Faltan completar 1 pallet');
   await page.click('#cf-1 >> text=✓ Todo OK');
-  await page.click('#cf-1 [data-k=qrOK][data-v=false]');
-  assert.equal(await page.textContent('.r-nok b'), '1 pallet(s)');
+  await page.click('#cf-1 [data-item=traz][data-v=false]');
+  assert.equal(await page.textContent('.r-nok b'), '1 pallet');
   assert.match(await page.textContent('.dict.warn'), /sugerido/, 'sugiere aprobado parcial');
-  await page.click('#cf-1 [data-k=qrOK][data-v=true]');
+  await page.click('#cf-1 [data-item=traz][data-v=true]');
   assert.match(await page.textContent('.dict.ok'), /sugerido/);
   await foto('2-sin-senal');
-  assert.equal((await servidorLote()).datos.final.pallets[0].idOK, null, 'sin señal no subió nada');
+  assert.ok((await servidorLote()).datos.final.unidades[0].v.idPal == null, 'sin señal no subió nada');
   await ctx.setOffline(false);
   await sincronizar();
   srvLote = await servidorLote();
-  assert.equal(srvLote.datos.final.pallets[1].qrOK, true, 'al volver la señal se subió');
+  assert.equal(srvLote.datos.final.unidades[1].v.traz, true, 'al volver la señal se subió');
   await page.waitForSelector('#nube >> text=Al día');
   paso('sin señal: trabaja local, sube al volver la conexión');
 

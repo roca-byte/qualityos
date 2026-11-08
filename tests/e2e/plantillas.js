@@ -1,0 +1,147 @@
+/* Plantillas de control: armar una propia en ⚙ y usarla en un lote.
+ * Uso:  node tests/e2e/plantillas.js [carpeta-para-capturas]
+ *
+ * Caso: una planta de bebidas parte del ejemplo "Bebidas", lo ajusta (saca un ítem, agrega
+ * una medición con tolerancia fija, marca un ítem del control final como no obligatorio),
+ * crea un lote con esa plantilla y lo dictamina. Se verifica que el lote muestre SOLO lo de
+ * su plantilla (nada de inducción ni peso por pico) y que el PDF también.
+ * Corre en el modo demo (entra como Administración), así que no hace falta cuenta.
+ */
+const { chromium } = require('playwright');
+const path = require('path');
+const assert = require('assert/strict');
+const { servidor } = require('../../tools/servidor');
+
+const CAPTURAS = process.argv[2] || null;
+
+(async () => {
+  const srv = servidor().listen(0);
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  const errores = [];
+  page.on('pageerror', e => errores.push(e.message));
+  page.on('dialog', d => d.accept());
+  const paso = t => console.log('✓ ' + t);
+  const foto = async n => { if (CAPTURAS) await page.screenshot({ path: path.join(CAPTURAS, n + '.png'), fullPage: true }); };
+  const item = (sec, i) => `.ed-item[data-sec="${sec}"][data-i="${i}"]`;
+
+  await page.goto('http://127.0.0.1:' + srv.address().port + '/');
+  await page.click('button[data-act="demo"]');
+  await page.click('button[type=submit]:has-text("Empezar")');
+  await page.click('[data-act=config]');
+  await page.waitForSelector('#plantillas');
+  assert.match(await page.textContent('#plantillas'), /Envasado de líquidos[\s\S]*Envasado de alimentos/);
+  paso('⚙ lista las plantillas de la empresa');
+
+  // Nueva plantilla desde el ejemplo de bebidas
+  await page.selectOption('#ejemplo-plantilla', 'bebidas');
+  await page.click('button[data-act="nueva-plantilla"]');
+  await page.waitForSelector('text=Nueva plantilla');
+  assert.equal(await page.inputValue('[name="p-nombre"]'), 'Envasado de bebidas');
+  await page.fill('[name="p-nombre"]', 'Jugos 1 L');
+  // Sacar °Brix (3er ítem del control en línea)
+  assert.equal(await page.inputValue(item('linea', 2) + ' [name=nombre]'), '°Brix');
+  await page.click(item('linea', 2) + ' [data-act="item-quitar"]');
+  assert.equal(await page.locator('.ed-item[data-sec="linea"]').count(), 4);
+  // Agregar una medición con tolerancia fija: pH entre 3 y 4
+  await page.click('button[data-act="item-agregar"][data-sec="linea"]');
+  const nuevo = item('linea', 4);
+  await page.fill(nuevo + ' [name=nombre]', 'pH');
+  await page.selectOption(nuevo + ' [name=tipo]', 'medicion');
+  await page.waitForSelector(nuevo + ' [name=tolerancia]');
+  assert.equal(await page.inputValue(item('linea', 4) + ' [name=nombre]'), 'pH', 'cambiar el tipo no borra lo escrito');
+  await page.selectOption(nuevo + ' [name=tolerancia]', 'fija');
+  await page.waitForSelector(nuevo + ' [name=min]');
+  await page.fill(nuevo + ' [name=min]', '4');
+  await page.fill(nuevo + ' [name=max]', '3');
+  await page.check(nuevo + ' [name=semaforo]');
+  // Subirlo al primer lugar
+  for (let i = 4; i > 0; i--) await page.click(item('linea', i) + ' [data-act="item-mover"][data-d="-1"]');
+  assert.equal(await page.inputValue(item('linea', 0) + ' [name=nombre]'), 'pH');
+  // La etiqueta del control final no es obligatoria para dictaminar
+  await page.uncheck(item('final', 1) + ' [name=obligatorio]');
+  await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('text=el mínimo es mayor que el máximo');
+  await page.fill(item('linea', 0) + ' [name=min]', '3');
+  await page.fill(item('linea', 0) + ' [name=max]', '4');
+  await foto('editor');
+  await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('#plantillas >> text=Jugos 1 L');
+  paso('nueva plantilla desde un ejemplo: quitar, agregar, cambiar tipo, mover, validar y guardar');
+
+  // Lote con la plantilla nueva
+  await page.click('[data-act=inicio]');
+  await page.click('text=+ Nuevo lote');
+  await page.fill('input[name=prod]', 'Jugo naranja 1 L');
+  await page.selectOption('select[name=plantilla]', { label: 'Jugos 1 L' });
+  await page.waitForSelector('input[name="min-vol"]');
+  assert.equal(await page.inputValue('input[name=prod]'), 'Jugo naranja 1 L', 'cambiar de plantilla conserva lo escrito');
+  assert.equal(await page.locator('input[name="min-peso"]').count(), 0, 'no pide rangos de otra plantilla');
+  await page.fill('input[name=lote]', 'J-0001');
+  await page.fill('input[name="min-vol"]', '995');
+  await page.fill('input[name="max-vol"]', '1010');
+  await page.fill('input[name="min-torque"]', '1.2');
+  await page.fill('input[name="max-torque"]', '2.0');
+  assert.match(await page.textContent('form'), /Cantidad de muestras del control final/);
+  await page.fill('input[name=cantFinal]', '2');
+  await page.click('text=Crear lote');
+  await page.waitForSelector('#cl-0');
+  const tarjeta = await page.textContent('#cl-0');
+  assert.match(tarjeta, /pH[\s\S]*Volumen[\s\S]*Torque de tapa[\s\S]*Codificado de fecha[\s\S]*Etiqueta/);
+  assert.doesNotMatch(tarjeta, /Inducción|Peso por pico|Brix/, 'solo lo de su plantilla');
+  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L · Volumen \/ nivel de llenado 995–1010 ml/);
+  paso('el lote muestra solo los controles de su plantilla y los rangos cargados');
+
+  // Control: pH fuera de tolerancia fija → NOK; se corrige
+  await page.fill('#cl-0 input[data-item][data-l="0"] >> nth=0', '4.6');
+  await page.waitForSelector('#cl-0 >> text=fuera de rango');
+  assert.match(await page.getAttribute('#cl-0', 'class'), /e-nok/);
+  assert.equal(await page.locator('#cl-0 .sem.nok').count(), 1, 'semáforo en rojo');
+  await page.fill('#cl-0 input[data-item][data-l="0"] >> nth=0', '3.5');
+  await page.waitForSelector('#cl-0 .sem.ok');
+  for (const [l, v] of [['0', '1000'], ['1', '1002'], ['2', '998']]) await page.fill(`#cl-0 input[data-item=vol][data-l="${l}"]`, v);
+  for (const [l, v] of [['0', '1.5'], ['1', '1.6'], ['2', '1.4']]) await page.fill(`#cl-0 input[data-item=torque][data-l="${l}"]`, v);
+  await page.click('#cl-0 [data-item=codif][data-v=true]');
+  await page.click('#cl-0 [data-item=etiqueta][data-v=true]');
+  assert.match(await page.getAttribute('#cl-0', 'class'), /e-ok/);
+  await foto('lote-bebidas');
+  paso('medición con tolerancia fija: semáforo y fuera de rango; promedio de lecturas');
+
+  // Control final: la etiqueta no es obligatoria → se puede dictaminar sin cargarla
+  for (const i of [0, 1]) {
+    await page.click(`#cf-${i} [data-item=herm][data-v=true]`);
+    await page.click(`#cf-${i} [data-item=pallet][data-v=true]`);
+  }
+  assert.equal(await page.locator('text=Faltan completar').count(), 0, 'lo no obligatorio no bloquea el dictamen');
+  assert.match(await page.textContent('.dict.ok'), /sugerido/);
+  await page.click('.dict.ok');
+  await page.waitForSelector('.dict-final.aprobado');
+  paso('ítem no obligatorio: no bloquea el dictamen');
+
+  const informe = await page.evaluate(() => {
+    const l = Store.lotes().find(x => x.datos.cab.lote === 'J-0001');
+    return Imprimir.html(l, Store.perfil().config, Store.perfil().empresa);
+  });
+  assert.match(informe, /Jugos 1 L/);
+  assert.match(informe, /pH/);
+  assert.doesNotMatch(informe, /Inducción|Peso por pico/);
+  assert.match(informe, /Volumen \/ nivel de llenado \(ml\)/);
+  paso('el PDF arma sus columnas con la plantilla del lote');
+
+  // Cambiar la plantilla después NO cambia el lote ya creado
+  await page.click('text=← Lotes');
+  await page.click('[data-act=config]');
+  await page.click('.fila-plantilla:has-text("Jugos 1 L") >> text=Editar');
+  await page.click(item('linea', 0) + ' [data-act="item-quitar"]');
+  await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('#plantillas');
+  const copia = await page.evaluate(() => Store.lotes().find(x => x.datos.cab.lote === 'J-0001').datos.plantilla.linea[0].nombre);
+  assert.equal(copia, 'pH', 'el lote conserva la plantilla con la que se creó');
+  paso('editar la plantilla no cambia los lotes ya creados');
+
+  assert.deepEqual(errores, []);
+  console.log('\nPlantillas: OK');
+  await browser.close();
+  srv.close();
+})().catch(e => { console.error('✗', e.message); process.exit(1); });

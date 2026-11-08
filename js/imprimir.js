@@ -20,16 +20,65 @@ var Imprimir = (function () {
 
   var DICTAMEN_TXT = { APROBADO: 'APROBADO', APROBADO_PARCIAL: 'APROBADO PARCIAL', RETENIDO: 'RETENIDO' };
 
+  // Columnas de una tabla según los ítems de la plantilla. Una medición con varias lecturas
+  // ocupa una columna por lectura (ej.: P1..P4) más la de resultado.
+  function cabeceras(items, cab) {
+    var arriba = '', abajo = '';
+    items.forEach(function (it) {
+      var titulo = esc(it.nombre) + (it.unidad ? ' (' + esc(it.unidad) + ')' : '');
+      var r = Reglas.rango(it, cab);
+      if (r) titulo += '<br><small>' + (isNaN(r.min) ? '' : esc(r.min)) + '–' + (isNaN(r.max) ? '' : esc(r.max)) + '</small>';
+      var n = it.tipo === 'medicion' ? Reglas.lecturas(it, null).length : 1;
+      if (it.tipo === 'medicion' && n > 1) {
+        arriba += '<th colspan="' + (n + 1) + '">' + titulo + '</th>';
+        for (var j = 0; j < n; j++) abajo += '<th>' + (j + 1) + '</th>';
+        abajo += '<th>OK</th>';
+      } else {
+        arriba += '<th rowspan="2">' + titulo + '</th>';
+      }
+    });
+    return { arriba: arriba, abajo: abajo };
+  }
+
+  function celdas(items, u, cab) {
+    return items.map(function (it) {
+      var v = u.v[it.id];
+      var e = Reglas.evaluar(it, v, u.r[it.id], cab);
+      if (it.tipo === 'okNok') return '<td>' + check(v, u.r[it.id]) + '</td>';
+      if (it.tipo === 'medicion') {
+        var ls = Reglas.lecturas(it, v);
+        var res = e.estado === 'nok' ? '<b class="i-nok">NOK</b>' : e.estado === 'repro' ? '<b class="i-repro">↻ REPRO</b>' :
+          e.estado === 'ok' ? 'OK' : '—';
+        var sem = e.sem ? ' <span class="i-sem ' + e.sem + '"></span>' : '';
+        if (ls.length > 1) return ls.map(function (x) { return '<td>' + esc(x) + '</td>'; }).join('') + '<td>' + res + '</td>';
+        return '<td>' + (ls[0] ? esc(ls[0]) + sem + (e.estado === 'nok' || e.estado === 'repro' ? ' ' + res : '') : '—') + '</td>';
+      }
+      if (it.tipo === 'fecha') return '<td>' + esc(Reglas.fechaLarga(v)) + '</td>';
+      return '<td>' + esc(v || '') + '</td>';
+    }).join('');
+  }
+
+  function columnas(items) {
+    return items.reduce(function (n, it) {
+      var l = it.tipo === 'medicion' ? Reglas.lecturas(it, null).length : 1;
+      return n + (l > 1 ? l + 1 : 1);
+    }, 0);
+  }
+
   function html(lote, config, empresa) {
     var l = lote.datos;
-    var cab = l.cab;
-    var ind = (config.inductoras || []).filter(function (i) { return i.id === cab.indId; })[0] || { nombre: '—' };
+    var cab = l.cab, p = l.plantilla;
     var res = Reglas.resumenFinal(l);
+    var rangos = p.linea.concat(p.final).filter(function (it) { return it.tipo === 'medicion' && it.tolerancia === 'lote' && Reglas.rango(it, cab); })
+      .map(function (it) {
+        var r = Reglas.rango(it, cab);
+        return esc(it.nombre) + ': ' + (isNaN(r.min) ? '' : esc(r.min)) + '–' + (isNaN(r.max) ? '' : esc(r.max)) + (it.unidad ? ' ' + esc(it.unidad) : '');
+      }).join(' · ');
 
     var encabezado =
       '<table class="i-cab"><tr>' +
       '<td class="i-empresa">' + esc(empresa) + '</td>' +
-      '<td class="i-titulo">Control de Calidad de Lote<br><small>Control en línea y producto final</small></td>' +
+      '<td class="i-titulo">Control de Calidad de Lote<br><small>' + esc(p.nombre) + '</small></td>' +
       '<td class="i-doc">Código: ' + esc(config.docCodigo || 'REG-01') + '<br>Versión: ' + esc(config.docVersion || '00') + '</td>' +
       '</tr></table>';
 
@@ -38,49 +87,42 @@ var Imprimir = (function () {
       '<th>Producto</th><td>' + esc(cab.prod) + '</td><th>N° de lote</th><td>' + esc(cab.lote) + '</td>' +
       '<th>Cliente</th><td>' + esc(cab.cliente || '—') + '</td></tr><tr>' +
       '<th>Línea</th><td>' + esc(cab.linea || '—') + '</td><th>Fecha</th><td>' + esc(Reglas.fechaLarga(cab.fecha)) + '</td>' +
-      '<th>Inductora</th><td>' + esc(ind.nombre) + (ind.tolMin !== undefined ? ' (' + esc(ind.tolMin) + '–' + esc(ind.tolMax) + ')' : '') + '</td></tr><tr>' +
-      '<th>Peso por pico</th><td>' + (cab.pesoMin ? esc(cab.pesoMin) + '–' + esc(cab.pesoMax) + ' kg' : '—') + '</td>' +
-      '<th>Inspector de Calidad</th><td>' + esc(cab.checker || '—') + '</td><th>Estado</th><td><b>' + esc(String(l.estado).replace('_', ' ').toUpperCase()) + '</b></td>' +
+      '<th>Inspector de Calidad</th><td>' + esc(cab.checker || '—') + '</td></tr><tr>' +
+      '<th>Rangos del lote</th><td colspan="3">' + (rangos || '—') + '</td>' +
+      '<th>Estado</th><td><b>' + esc(String(l.estado).replace('_', ' ').toUpperCase()) + '</b></td>' +
       '</tr></table>';
 
-    var filasLinea = (l.linea || []).map(function (p, i) {
-      var peso = Reglas.pesoOK(p, cab);
-      var sem = Reglas.semaforo(p.indVal, ind);
-      var fila = '<tr class="i-' + Reglas.estadoPalletLinea(p, cab) + '">' +
-        '<td>' + (i + 1) + '</td><td>' + esc(p.nPal) + '</td><td>' + esc(p.hora) + '</td>' +
-        Reglas.PICOS.map(function (k) { return '<td>' + esc(p[k]) + '</td>'; }).join('') +
-        '<td>' + (peso === false ? '<b class="i-nok">NOK</b>' : peso ? 'OK' : '—') + '</td>' +
-        '<td>' + esc(p.lote) + '</td><td>' + esc(p.codProd) + '</td><td>' + esc(Reglas.fechaLarga(p.fProd)) + '</td><td>' + esc(Reglas.fechaLarga(p.fVenc)) + '</td>' +
-        '<td>' + check(p.indOK, p.repro) + '</td><td>' + esc(p.indVal || '—') + (sem ? ' <span class="i-sem ' + sem + '"></span>' : '') + '</td>' +
-        '<td>' + check(p.qrLineaOK, p.qrRepro) + '</td><td>' + check(p.packOK, p.packRepro) + '</td><td>' + check(p.pltOK, p.pltRepro) + '</td></tr>';
-      if (p.obs) fila += '<tr><td></td><td colspan="18" class="i-obs">↳ ' + esc(p.obs) + '</td></tr>';
-      return fila;
-    }).join('');
+    var linea = '';
+    if (p.linea.length) {
+      var hl = cabeceras(p.linea, cab);
+      var filasLinea = l.linea.map(function (u, i) {
+        var fila = '<tr class="i-' + Reglas.estadoUnidadLinea(p.linea, u, cab) + '"><td>' + (i + 1) + '</td><td>' + esc(u.n) + '</td><td>' + esc(u.hora) + '</td>' +
+          celdas(p.linea, u, cab) + '</tr>';
+        if (u.obs) fila += '<tr><td></td><td colspan="' + (columnas(p.linea) + 2) + '" class="i-obs">↳ ' + esc(u.obs) + '</td></tr>';
+        return fila;
+      }).join('');
+      linea = '<h3>Control en línea · ' + l.linea.length + ' ' + esc(String(l.linea.length === 1 ? p.unidad : p.unidades).toLowerCase()) + '</h3>' +
+        '<table class="i-tabla i-chica"><thead><tr><th rowspan="2">#</th><th rowspan="2">' + esc(p.unidad) + '</th><th rowspan="2">Hora</th>' +
+        hl.arriba + '</tr><tr>' + hl.abajo + '</tr></thead><tbody>' + filasLinea + '</tbody></table>';
+    }
 
-    var linea =
-      '<h3>Control en línea · ' + (l.linea || []).length + ' pallets</h3>' +
-      '<table class="i-tabla i-chica"><thead><tr>' +
-      '<th rowspan="2">#</th><th rowspan="2">Pallet</th><th rowspan="2">Hora</th>' +
-      '<th colspan="5">Peso por pico (kg)</th><th colspan="4">Identificación</th><th colspan="2">Inducción</th><th colspan="3">Control en línea</th></tr><tr>' +
-      '<th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>OK</th><th>Lote</th><th>Cód.</th><th>F. prod.</th><th>F. venc.</th>' +
-      '<th>OK/NOK</th><th>Valor</th><th>QR</th><th>Pack</th><th>Plt</th></tr></thead><tbody>' + filasLinea + '</tbody></table>';
-
-    var filasFinal = ((l.final && l.final.pallets) || []).map(function (p, i) {
-      var fila = '<tr class="i-' + Reglas.estadoPalletFinal(p) + '"><td>' + (i + 1) + '</td>' +
-        Reglas.CHECKS_FINAL.map(function (c) { return '<td>' + check(p[c.campo], p[c.repro]) + '</td>'; }).join('') +
-        '<td>' + esc(p.litrosParcial || l.final.ltsPorPallet || '—') + '</td></tr>';
-      if (p.obs) fila += '<tr><td></td><td colspan="5" class="i-obs">↳ ' + esc(p.obs) + '</td></tr>';
-      return fila;
-    }).join('');
-
-    var cantidad = function (lts, pal) { return lts !== null ? Math.round(lts) + ' L' : pal + ' pallets'; };
-    var final =
-      '<h3>Control final · ' + ((l.final && l.final.pallets) || []).length + ' pallets</h3>' +
-      '<table class="i-tabla i-chica"><thead><tr><th>#</th>' +
-      Reglas.CHECKS_FINAL.map(function (c) { return '<th>' + esc(c.nombre) + '</th>'; }).join('') +
-      '<th>Litros</th></tr></thead><tbody>' + filasFinal + '</tbody></table>' +
-      '<p class="i-resumen">Aprobado: <b>' + cantidad(res.ltsAprobados, res.aprobados) + '</b> · Retenido: <b>' +
-      cantidad(res.ltsRetenidos, res.retenidos) + '</b>' + (res.pendientes ? ' · Sin controlar: <b>' + res.pendientes + '</b>' : '') + '</p>';
+    var final = '';
+    if (p.final.length) {
+      var hf = cabeceras(p.final, cab);
+      var conCant = !!p.cantidad;
+      var filasFinal = l.final.unidades.map(function (u, i) {
+        var fila = '<tr class="i-' + Reglas.estadoUnidadFinal(p.final, u, cab) + '"><td>' + (i + 1) + '</td>' + celdas(p.final, u, cab) +
+          (conCant ? '<td>' + esc(u.cant || l.final.cantPorUnidad || '—') + '</td>' : '') + '</tr>';
+        if (u.obs) fila += '<tr><td></td><td colspan="' + (columnas(p.final) + (conCant ? 1 : 0)) + '" class="i-obs">↳ ' + esc(u.obs) + '</td></tr>';
+        return fila;
+      }).join('');
+      var cantidad = function (c, n) { return c !== null ? Math.round(c * 100) / 100 + ' ' + esc(p.cantidad) : n + ' ' + esc(String(n === 1 ? p.unidad : p.unidades).toLowerCase()); };
+      final = '<h3>Control final · ' + l.final.unidades.length + ' ' + esc(String(l.final.unidades.length === 1 ? p.unidad : p.unidades).toLowerCase()) + '</h3>' +
+        '<table class="i-tabla i-chica"><thead><tr><th rowspan="2">#</th>' + hf.arriba +
+        (conCant ? '<th rowspan="2">Cantidad (' + esc(p.cantidad) + ')</th>' : '') + '</tr><tr>' + hf.abajo + '</tr></thead><tbody>' + filasFinal + '</tbody></table>' +
+        '<p class="i-resumen">Aprobado: <b>' + cantidad(res.cantAprobada, res.aprobados) + '</b> · Retenido: <b>' +
+        cantidad(res.cantRetenida, res.retenidos) + '</b>' + (res.pendientes ? ' · Sin controlar: <b>' + res.pendientes + '</b>' : '') + '</p>';
+    }
 
     var obs = (l.hallazgos || []).length
       ? '<h3>Observaciones</h3><ul class="i-hallazgos">' + l.hallazgos.map(function (h) {
@@ -94,8 +136,8 @@ var Imprimir = (function () {
       '<th>Dictamen</th><td><b>' + esc(DICTAMEN_TXT[f.dictamen] || 'SIN DICTAMEN') + '</b></td>' +
       '<th>Dictaminó</th><td>' + esc(f.dictaminadoPor || '—') + (f.dictaminadoRol ? ' (' + esc(f.dictaminadoRol) + ')' : '') + '</td>' +
       '<th>Fecha</th><td>' + esc(f.fechaDictamen || '—') + '</td></tr>' +
-      (l.cierreForzado ? '<tr><td colspan="6">⚠ Dictaminado con ' + esc(l.cierreForzado.faltantes) +
-        ' pallet(s) sin completar, autorizado por ' + esc(l.cierreForzado.por) + '</td></tr>' : '') +
+      (l.cierreForzado ? '<tr><td colspan="6">⚠ Dictaminado con ' + esc(l.cierreForzado.faltantes) + ' ' + esc(p.unidades.toLowerCase()) +
+        ' sin completar, autorizado por ' + esc(l.cierreForzado.por) + '</td></tr>' : '') +
       '<tr><th>Elaboró</th><td>' + esc(config.docElab || '') + '</td><th>Aprobó</th><td colspan="3">' + esc(config.docAprob || '') + '</td></tr></table>';
 
     return '<div class="informe">' + encabezado + datos + linea + final + obs + dictamen +

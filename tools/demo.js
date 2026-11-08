@@ -116,9 +116,9 @@ function sembrarLotes() {
   await page.fill('input[name=lote]', 'L-2611-015');
   await page.fill('input[name=cliente]', 'Almacén Central');
   await page.fill('input[name=linea]', 'Env-04');
-  await page.fill('input[name=pesoMin]', '10');
-  await page.fill('input[name=pesoMax]', '11');
-  await page.fill('input[name=pallets]', '4');
+  await page.fill('input[name="min-peso"]', '10');
+  await page.fill('input[name="max-peso"]', '11');
+  await page.fill('input[name=cantFinal]', '4');
   await foto(page, '04-nuevo-lote');
 
   await page.click(':nth-match(.lote-item, 1)').catch(() => {});
@@ -163,8 +163,18 @@ function sembrarLotes() {
   await page.click('button[type=submit]:has-text("Empezar")');
   await page.click('[data-act=config]');
   await page.waitForSelector('#miembros select');
-  await foto(page, '13-configuracion', 'section:has(#inductoras)');
+  await foto(page, '13-configuracion', 'section:has([data-form=config])');
   await foto(page, '14-personas', '#miembros');
+  await foto(page, '15-plantillas', '#plantillas');
+  await page.click('.fila-plantilla:has-text("Envasado de alimentos") >> text=Editar');
+  await page.waitForSelector('.ed-item');
+  await recorte(page, '16-editor-plantilla', '[data-form=plantilla]', '.ed-item[data-sec="linea"][data-i="1"]');
+  await page.click('button[data-act=config]');
+  await page.click('[data-act=inicio]');
+  await page.click('button[data-tab="historial"]');
+  await page.click('.lote-item:has-text("Y-2611-031")');
+  await page.waitForSelector('#cl-1');
+  await foto(page, '17-lote-alimentos', '#cl-1');
   await ctx.close();
 
   // ── Recorrido animado: crear, controlar y dictaminar un lote ──
@@ -179,20 +189,20 @@ function sembrarLotes() {
   await tipear('input[name=prod]', 'Aceite girasol 1,5 L');
   await tipear('input[name=lote]', 'L-2611-015');
   await tipear('input[name=cliente]', 'Almacén Central');
-  await tipear('input[name=pesoMin]', '10');
-  await tipear('input[name=pesoMax]', '11');
-  await page.fill('input[name=pallets]', '2');
+  await tipear('input[name="min-peso"]', '10');
+  await tipear('input[name="max-peso"]', '11');
+  await page.fill('input[name=cantFinal]', '2');
   await page.waitForTimeout(400);
   await page.click(boton('Crear lote'));
   await page.waitForTimeout(700);
-  for (const [k, v] of [['p1', '10.5'], ['p2', '10.7'], ['p3', '11.4']]) await tipear('#cl-0 input[data-k=' + k + ']', v);
+  const pico = n => '#cl-0 input[data-item=peso][data-l="' + n + '"]';
+  for (const [n, v] of [[0, '10.5'], [1, '10.7'], [2, '11.4']]) await tipear(pico(n), v);
   await page.waitForTimeout(900);
-  await page.fill('#cl-0 input[data-k=p3]', '');
-  await tipear('#cl-0 input[data-k=p3]', '10.6');
-  await tipear('#cl-0 input[data-k=p4]', '10.5');
-  await page.click('#cl-0 [data-k=indOK][data-v=true]');
-  await tipear('#cl-0 input[data-k=indVal]', '1.2');
-  for (const k of ['qrLineaOK', 'packOK', 'pltOK']) { await page.click('#cl-0 [data-k=' + k + '][data-v=true]'); await page.waitForTimeout(250); }
+  await page.fill(pico(2), '');
+  await tipear(pico(2), '10.6');
+  await tipear(pico(3), '10.5');
+  await tipear('#cl-0 input[data-item=ind]', '1.2');
+  for (const k of ['qr', 'pack', 'plt']) { await page.click('#cl-0 [data-item=' + k + '][data-v=true]'); await page.waitForTimeout(250); }
   await page.waitForTimeout(500);
   await page.locator('#cf-0').scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);

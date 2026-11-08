@@ -133,45 +133,45 @@ function preparar() {
   await tipear('input[name=cliente]', 'Almacén Central');
   await page.selectOption('select[name=indId]', 'A').catch(() => {});
   await tipear('input[name=linea]', 'Env-04');
-  await tipear('input[name=pesoMin]', '10');
-  await tipear('input[name=pesoMax]', '11');
-  await ver('input[name=pallets]');
-  await page.fill('input[name=pallets]', '2');
+  await tipear('input[name="min-peso"]', '10');
+  await tipear('input[name="max-peso"]', '11');
+  await ver('input[name=cantFinal]');
+  await page.fill('input[name=cantFinal]', '2');
   await espera(500);
   await tocar(boton('Crear lote'), 900);
 
   // ── Control en línea ──
   await cartel('2 · Control en línea, pallet por pallet', 'Los 4 pesos por pico, con el rango del lote', 900);
   await tocar('#cl-0 [data-act="hora"]', 400);
-  await tipear('#cl-0 input[data-k=p1]', '10.5');
-  await tipear('#cl-0 input[data-k=p2]', '10.7');
-  await tipear('#cl-0 input[data-k=p3]', '11.4');
+  const pico = n => '#cl-0 input[data-item=peso][data-l="' + n + '"]';
+  await tipear(pico(0), '10.5');
+  await tipear(pico(1), '10.7');
+  await tipear(pico(2), '11.4');
   await cartel('⚖ Un pico fuera de rango salta al instante', 'Se corrige y vuelve a quedar en verde', 2400);
-  await page.fill('#cl-0 input[data-k=p3]', '');
-  await tipear('#cl-0 input[data-k=p3]', '10.6');
-  await tipear('#cl-0 input[data-k=p4]', '10.5');
+  await page.fill(pico(2), '');
+  await tipear(pico(2), '10.6');
+  await tipear(pico(3), '10.5');
   await espera(600);
   await cartel('Identificación del pallet', 'Al agregar otro pallet se copia del anterior', 600);
-  await tipear('#cl-0 input[data-k=lote]', 'L-2611-015');
-  await tipear('#cl-0 input[data-k=codProd]', '7790123');
+  await tipear('#cl-0 input[data-item=loteEnv]', 'L-2611-015');
+  await tipear('#cl-0 input[data-item=codigo]', '7790123');
   // Fechas con día = mes: se leen igual en dd/mm y en mm/dd.
-  await ver('#cl-0 input[data-k=fProd]');
-  await page.fill('#cl-0 input[data-k=fProd]', '2026-11-11');
-  await page.fill('#cl-0 input[data-k=fVenc]', '2027-11-11');
+  await ver('#cl-0 input[data-item=fprod]');
+  await page.fill('#cl-0 input[data-item=fprod]', '2026-11-11');
+  await page.fill('#cl-0 input[data-item=fvenc]', '2027-11-11');
   await espera(1000);
-  await cartel('Inducción con semáforo', 'Según la tolerancia de la inductora', 700);
-  await tocar('#cl-0 [data-k=indOK][data-v=true]', 300);
-  await tipear('#cl-0 input[data-k=indVal]', '1.2');
+  await cartel('Mediciones con semáforo', 'Verde dentro de tolerancia, amarillo cerca, rojo afuera', 700);
+  await tipear('#cl-0 input[data-item=ind]', '1.2');
   await espera(900);
-  await tocar('#cl-0 [data-k=qrLineaOK][data-v=true]', 300);
-  await tocar('#cl-0 [data-k=packOK][data-v=false]', 400);
+  await tocar('#cl-0 [data-item=qr][data-v=true]', 300);
+  await tocar('#cl-0 [data-item=pack][data-v=false]', 400);
   await cartel('¿Un NOK corregido en el momento?', 'Se marca como Reprocesado y queda registrado', 900);
-  await tocar('#cl-0 [data-act=repro][data-k=packRepro]', 900);
-  await tocar('#cl-0 [data-k=pltOK][data-v=true]', 900);
+  await tocar('#cl-0 [data-act=repro][data-item=pack]', 900);
+  await tocar('#cl-0 [data-item=plt][data-v=true]', 900);
 
   // ── Control final ──
   await cartel('3 · Control final antes del despacho', '“Todo OK” completa un pallet de un toque', 900);
-  await tipear('input[data-k=ltsPorPallet]', '1000');
+  await tipear('input[data-campo=cantPorUnidad]', '1000');
   await tocar('#cf-0 >> text=✓ Todo OK', 700);
   await tocar('#cf-1 >> text=✓ Todo OK', 900);
 
@@ -187,6 +187,21 @@ function preparar() {
   await tocar('text=← Lotes', 500);
   await tocar('button[data-tab="historial"]', 600);
   await cartel('5 · Todo queda en el historial', 'Con búsqueda por lote, producto o cliente', 2600);
+
+  // ── Plantillas: sirve para cualquier rubro ──
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+  await tocar('[data-act=config]', 500);
+  await ver('#plantillas');
+  await cartel('Cada planta define qué controla', 'Plantillas por producto o línea, con ejemplos por rubro', 2800);
+  await tocar('.fila-plantilla:has-text("Envasado de alimentos") >> text=Editar', 600);
+  await cartel('Mediciones con tolerancia, OK/NOK, datos y fechas', 'Alimentos, bebidas, químicos, cosmética…', 1600);
+  await ver('.ed-item[data-sec="linea"][data-i="1"]');
+  await espera(1400);
+  await ver('.ed-item[data-sec="linea"][data-i="2"]');
+  await espera(1200);
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+  await tocar('button[data-act=config]', 400);
+  await tocar('[data-act=inicio]', 500);
 
   // ── Sin señal ──
   await page.evaluate(() => window.scrollTo({ top: 0 }));
