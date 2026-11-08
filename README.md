@@ -75,4 +75,17 @@ node tests/e2e/flujo.js         # interfaz de punta a punta (Playwright, Supabas
 
 ## Licencia
 
-[MIT](LICENSE) © 2026 Maximiliano Roca
+© 2026 Maximiliano Roca. Publicada con la licencia
+[PolyForm Noncommercial 1.0.0](LICENSE).
+
+En criollo: el código está a la vista y lo podés leer, estudiar, probar y modificar para
+**uso no comercial** (personal, educativo, de investigación o en organizaciones sin fines de
+lucro). **No se puede usar con fines comerciales**, por ejemplo usarla en una empresa u
+ofrecerla como servicio, sin un permiso del autor. Para uso comercial, escribime.
+El texto que vale es el de [`LICENSE`](LICENSE); este resumen es solo orientativo.
+
+Las versiones publicadas hasta el commit `4d632f5` inclusive siguen bajo licencia MIT para
+quien las haya obtenido en ese momento.
+
+`vendor/supabase.js` es de [supabase-js](https://github.com/supabase/supabase-js) y mantiene
+su propia licencia MIT (`vendor/supabase-LICENSE`).

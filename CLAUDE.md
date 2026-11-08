@@ -12,7 +12,8 @@ Contexto para sesiones futuras. Leer también `docs/DISENO.md`.
 
 ## Mismo modelo que sus otras apps
 Scripts clásicos sin módulos ni build, un objeto global por archivo, interfaz en español
-rioplatense (voseo), botones de 48 px, funciona sin señal, licencia MIT.
+rioplatense (voseo), botones de 48 px, funciona sin señal.
+Licencia: PolyForm Noncommercial 1.0.0 (NO es MIT como sus otras apps: posible SaaS).
 Orden de carga: `vendor/supabase.js → config → reglas → store → nube → imprimir → app`.
 
 ## Reglas
