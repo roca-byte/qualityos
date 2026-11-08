@@ -135,12 +135,14 @@
     } catch (e) { /* sin señal: se sigue con lo guardado */ }
   }
 
-  async function elegirEmpresa(u, nombre) {
+  // mostrarSiempre: desde "Cambiar de empresa" se muestra la lista aunque haya una sola
+  // (si no, el dueño de la plataforma nunca llegaría al formulario de empresa nueva).
+  async function elegirEmpresa(u, nombre, mostrarSiempre) {
     var ms;
     try { ms = await Nube.misEmpresas(nombre); }
     catch (e) { return ir('login', { mensaje: e.message }); }
     ui.usuario = u;
-    if (ms.length === 1) return usarMembresia(u, ms[0]);
+    if (ms.length === 1 && !mostrarSiempre) return usarMembresia(u, ms[0]);
     var puedeCrear = false;
     try { puedeCrear = await Nube.puedoCrearEmpresas(); } catch (e) { /* sin permiso: no se muestra */ }
     ir('empresa', { membresias: ms, puedeCrear: puedeCrear });
@@ -710,7 +712,7 @@
     },
     'usar-empresa': function (b) { usarMembresia(ui.usuario, ui.membresias[Number(b.dataset.i)]); },
     'cambiar-empresa': async function () {
-      try { await elegirEmpresa(await Nube.usuario(), ''); }
+      try { await elegirEmpresa(await Nube.usuario(), '', true); }
       catch (e) { aviso(e.message); }
     },
     salir: async function () {
