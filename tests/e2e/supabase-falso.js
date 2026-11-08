@@ -51,6 +51,7 @@
 
   var rpcs = {
     aceptar_invitaciones: function () { return 0; },
+    puedo_crear_empresas: function () { return true; },
     crear_empresa: function (a) {
       var id = 'e-' + (db.empresas.length + 1);
       db.empresas.push({ id: id, nombre: a.p_nombre, config: {} });

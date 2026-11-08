@@ -141,7 +141,9 @@
     catch (e) { return ir('login', { mensaje: e.message }); }
     ui.usuario = u;
     if (ms.length === 1) return usarMembresia(u, ms[0]);
-    ir('empresa', { membresias: ms });
+    var puedeCrear = false;
+    try { puedeCrear = await Nube.puedoCrearEmpresas(); } catch (e) { /* sin permiso: no se muestra */ }
+    ir('empresa', { membresias: ms, puedeCrear: puedeCrear });
   }
 
   function usarMembresia(u, m) {
@@ -212,14 +214,16 @@
             ' · ' + esc(ROLES[m.rol]) + '</button>';
         }).join('')
       : '<p>Tu cuenta todavía no pertenece a ninguna empresa.</p>' +
-        '<p class="ayuda">Si te invitaron, tocá "Buscar invitaciones". Si sos el primero de tu empresa, creala.</p>';
+        '<p class="ayuda">Para usar QualityOS te tiene que invitar el administrador de tu empresa, ' +
+        'con el mismo email de esta cuenta. Cuando te invite, tocá "Buscar invitaciones".</p>';
     return '<section class="tarjeta angosta"><h2>Empresa</h2>' +
       (ui.mensaje ? '<p class="error">' + esc(ui.mensaje) + '</p>' : '') + lista +
       '<form data-form="empresa">' +
       '<label>Tu nombre (sale en la firma del dictamen)<input name="nombre" required></label>' +
       '<button class="btn" type="button" data-act="buscar-invitaciones">Buscar invitaciones</button>' +
-      '<label>Nombre de la empresa nueva<input name="empresa"></label>' +
-      '<button class="btn primario" type="submit">Crear empresa</button>' +
+      // Crear empresas es solo para los dueños de la plataforma (la base lo exige igual).
+      (ui.puedeCrear ? '<label>Nombre de la empresa nueva<input name="empresa"></label>' +
+        '<button class="btn primario" type="submit">Crear empresa</button>' : '') +
       '</form><button class="btn chico" data-act="salir">Salir</button></section>';
   };
 
@@ -749,6 +753,8 @@
       } catch (e) { ir('login', { mensaje: e.message }); }
     },
     empresa: async function (f) {
+      // Sin permiso para crear empresas no hay campo "empresa": Enter busca invitaciones.
+      if (!f.empresa) return acciones['buscar-invitaciones']();
       if (!f.empresa.value.trim()) return ir('empresa', { mensaje: 'Escribí el nombre de la empresa nueva.' });
       try {
         await Nube.crearEmpresa(f.empresa.value.trim(), f.nombre.value.trim());

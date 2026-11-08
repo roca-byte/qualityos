@@ -65,13 +65,33 @@ archivo nuevo.
 4. ⚙ → **Personas → Invitar**: email y rol de cada persona. Cada una crea su cuenta con ese
    mismo email y al entrar queda sumada.
 
+## Quién puede crear empresas
+
+Solo los **dueños de la plataforma** (tabla `plataforma_admins`). El resto de las personas
+entra únicamente si el administrador de una empresa las invita. Así nadie puede usar el
+proyecto solo por tener el link.
+
+Para sumar a alguien como dueño de la plataforma (SQL Editor):
+
+```sql
+insert into public.plataforma_admins (user_id)
+select id from auth.users where email = 'persona@email.com';
+```
+
+Para dar de alta una empresa cliente: entrás vos, creás la empresa desde la app (⚙ → Cambiar
+de empresa) e invitás a su responsable con rol **Administración**.
+
 ## Advertencias del panel (Advisors)
 
-**Security Advisor** muestra 7 avisos "Signed-In Users Can Execute SECURITY DEFINER Function"
-(`guardar_lote`, `crear_empresa`, `aceptar_invitaciones`, `cambiar_mi_nombre`, `mi_rol`,
-`es_miembro`, `es_admin`). Son **intencionales**: las cuatro primeras son la forma en que la
-app escribe (y validan permisos adentro) y las tres últimas las usan las reglas RLS.
-Si aparece cualquier otra función, revisarla.
+**Security Advisor** muestra estos avisos, y son **intencionales**:
+
+- 8 × "Signed-In Users Can Execute SECURITY DEFINER Function" (`guardar_lote`,
+  `crear_empresa`, `aceptar_invitaciones`, `cambiar_mi_nombre`, `puedo_crear_empresas`,
+  `mi_rol`, `es_miembro`, `es_admin`): son la forma en que la app escribe y consulta
+  permisos (cada una valida adentro) o las usan las reglas RLS.
+- "RLS Enabled No Policy" en `plataforma_admins`: a propósito, nadie la lee desde la app.
+
+Si aparece cualquier otra función o tabla, revisarla.
 
 ## Roles
 

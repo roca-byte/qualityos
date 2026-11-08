@@ -47,6 +47,17 @@ insert into auth.users values
   ('00000000-0000-0000-0000-00000000000c', 'caro@dos.com'),
   ('00000000-0000-0000-0000-00000000000d', 'dani@nadie.com');
 
+-- ── Solo los dueños de la plataforma crean empresas ──
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d","email":"dani@nadie.com"}', false);
+set role authenticated;
+do $$ begin assert not public.puedo_crear_empresas(), 'Dani no puede crear empresas'; end $$;
+select prueba.debe_fallar($$select public.crear_empresa('Empresa Pirata', 'Dani')$$, 'Solo el administrador');
+select prueba.debe_fallar($$select count(*) from public.plataforma_admins$$, 'permission denied');
+select prueba.debe_fallar($$insert into public.plataforma_admins values (auth.uid())$$, 'permission denied');
+reset role;
+insert into public.plataforma_admins (user_id) values
+  ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000c');
+
 -- ── Ana crea la empresa Uno e invita a Beto como checker ──
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","email":"ana@uno.com"}', false);
 set role authenticated;
@@ -71,6 +82,8 @@ do $$ begin
   assert public.aceptar_invitaciones('Beto') = 1, 'Beto entra por invitación';
 end $$;
 select :'e1'::uuid as e1u \gset
+-- Un invitado trabaja en su empresa pero no crea otras.
+select prueba.debe_fallar($$select public.crear_empresa('Otra', 'Beto')$$, 'Solo el administrador');
 do $$
 declare e uuid := (select id from public.empresas);
         r jsonb;

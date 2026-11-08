@@ -82,6 +82,11 @@ var Nube = (function () {
       .eq('user_id', u.id).eq('activo', true));
   }
 
+  // Solo los dueños de la plataforma crean empresas (lo decide la base).
+  async function puedoCrearEmpresas() {
+    return dato(await sb().rpc('puedo_crear_empresas')) === true;
+  }
+
   async function crearEmpresa(nombre, miNombre) {
     return dato(await sb().rpc('crear_empresa', { p_nombre: nombre, p_mi_nombre: miNombre }));
   }
@@ -168,7 +173,7 @@ var Nube = (function () {
   return {
     configurada: configurada, hayRed: hayRed,
     usuario: usuario, entrar: entrar, registrarse: registrarse, salir: salir,
-    misEmpresas: misEmpresas, crearEmpresa: crearEmpresa, guardarEmpresa: guardarEmpresa,
+    misEmpresas: misEmpresas, puedoCrearEmpresas: puedoCrearEmpresas, crearEmpresa: crearEmpresa, guardarEmpresa: guardarEmpresa,
     cambiarMiNombre: cambiarMiNombre, miembros: miembros, invitar: invitar,
     quitarInvitacion: quitarInvitacion, cambiarMiembro: cambiarMiembro,
     sincronizar: sincronizar, buscarLotes: buscarLotes
