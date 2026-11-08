@@ -7,23 +7,14 @@
  */
 const { chromium } = require('playwright');
 const { execFileSync } = require('child_process');
-const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const RAIZ = path.join(__dirname, '..');
+const { servidor, RAIZ } = require('./servidor');
+const CONFIG = require('../js/demo.js').CONFIG_EJEMPLO;
 const SALIDA = path.join(RAIZ, 'docs', 'img');
-const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
-const CONFIG = {
-  inductoras: [
-    { id: 'A', nombre: 'Inductora Línea 1', tolMin: 1.0, tolMax: 1.4, unidad: '', semaforo: true },
-    { id: 'B', nombre: 'Inductora Línea 2', tolMin: 0.9, tolMax: 1.3, unidad: '', semaforo: true }
-  ],
-  lineas: ['Env-01', 'Env-02', 'Env-04'],
-  docCodigo: 'REG-01', docVersion: '03', docElab: 'Laura Gómez', docAprob: 'Coordinación de Calidad'
-};
 
 const BASE = {
   usuarios: {
@@ -41,60 +32,10 @@ const BASE = {
   lotes: []
 };
 
-function servidor() {
-  return http.createServer((req, res) => {
-    let p = decodeURIComponent(req.url.split('?')[0]);
-    if (p === '/') p = '/index.html';
-    if (p === '/vendor/supabase.js') p = '/tests/e2e/supabase-falso.js';
-    if (p === '/js/config.js') {
-      res.writeHead(200, { 'Content-Type': 'text/javascript' });
-      return res.end("window.QOS_CONFIG = { supabaseUrl: 'http://demo', supabaseKey: 'demo' };");
-    }
-    const archivo = path.join(RAIZ, p);
-    if (!archivo.startsWith(RAIZ) || !fs.existsSync(archivo)) { res.writeHead(404); return res.end(); }
-    res.writeHead(200, { 'Content-Type': TIPOS[path.extname(archivo)] || 'application/octet-stream' });
-    fs.createReadStream(archivo).pipe(res);
-  });
-}
-
-// Lotes de ejemplo, armados con las mismas reglas de la app (corre dentro de la página).
+// Lotes de ejemplo: los mismos del modo demo (js/demo.js). Corre dentro de la página.
 function sembrarLotes() {
-  const hoy = new Date();
-  const dia = n => Reglas.hoy(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n));
-  const ok = { idOK: true, qrOK: true, paletOK: true, indCFOK: true };
-  const pl = (n, extra) => Object.assign(Reglas.nuevoPalletLinea(n), {
-    hora: '0' + (6 + n) + ':1' + n, p1: '10.4', p2: '10.6', p3: '10.5', p4: '10.5',
-    // Fechas con día = mes (11/11): se leen igual en dd/mm y en mm/dd, sea cual sea el idioma del navegador.
-    lote: 'L-' + n, codProd: '7790123', fProd: '2026-11-11', fVenc: '2027-11-11',
-    indOK: true, indVal: '1.2', qrLineaOK: true, packOK: true, pltOK: true
-  }, extra || {});
-  const lote = (cab, estado, dictamen, finales, linea, por) => {
-    const l = Reglas.nuevoLote(Object.assign({ indId: 'A', pesoMin: '10', pesoMax: '11', checker: 'Laura Gómez' }, cab), 0);
-    l.linea = linea;
-    l.final.pallets = finales.map(f => Object.assign(Reglas.nuevoPalletFinal(), f));
-    l.final.ltsPorPallet = '1000';
-    if (dictamen) {
-      l.estado = estado; l.final.dictamen = dictamen;
-      l.final.fechaDictamen = Reglas.fechaLarga(cab.fecha) + ', 15:40';
-      l.final.dictaminadoPor = por; l.final.dictaminadoRol = por === 'Pablo Díaz' ? 'Coordinación' : 'Inspector de Calidad';
-    }
-    return l;
-  };
-  const datos = [
-    lote({ prod: 'Aceite girasol 1,5 L', lote: 'L-2611-014', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(0) },
-      'activo', null, [ok, ok, ok, {}, {}, {}], [pl(1), pl(2, { p3: '11.3' }), pl(3, { packOK: false, packRepro: true })]),
-    lote({ prod: 'Aceite oliva 500 ml', lote: 'L-2611-012', cliente: 'Almacén Central', linea: 'Env-01', fecha: dia(1) },
-      'aprobado', 'APROBADO', [ok, ok, ok, ok], [pl(1), pl(2)], 'Laura Gómez'),
-    lote({ prod: 'Vinagre de alcohol 1 L', lote: 'L-2611-009', cliente: 'Supermercados del Sur', linea: 'Env-02', fecha: dia(2) },
-      'aprobado_parcial', 'APROBADO_PARCIAL', [ok, ok, Object.assign({}, ok, { qrOK: false }), ok], [pl(1)], 'Laura Gómez'),
-    lote({ prod: 'Aceite girasol 900 ml', lote: 'L-2611-007', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(3) },
-      'retenido', 'RETENIDO', [Object.assign({}, ok, { indCFOK: false }), Object.assign({}, ok, { indCFOK: false })], [pl(1, { indOK: false, indVal: '0.7' })], 'Pablo Díaz')
-  ];
   const db = JSON.parse(localStorage.getItem('__db'));
-  datos.forEach((d, i) => db.lotes.push({
-    id: '00000000-0000-4000-8000-00000000000' + i, empresa_id: 'e-1', datos: d, version: 1, borrado: false,
-    modificado: new Date(Date.now() - i * 60000).toISOString()
-  }));
+  db.lotes = Demo.lotesEjemplo('e-1');
   localStorage.setItem('__db', JSON.stringify(db));
 }
 

@@ -5,6 +5,10 @@ ejemplo ("Planta Demo") con datos inventados.
 
 <p align="center"><img src="img/demo.gif" alt="Recorrido: crear un lote, controlarlo y dictaminarlo" width="300"></p>
 
+> **¿Querés verla antes de tener cuenta?** Abrí la app y tocá **“Probar sin cuenta (demo)”**: entrás a
+> una empresa de ejemplo con lotes cargados. Todo lo que hagas queda solo en tu navegador y cada vez
+> que entrás a la demo arranca de cero. También hay un [video de 1 minuto y medio](video/qualityos-demo.mp4).
+
 **Contenido**
 
 1. [Entrar por primera vez](#1-entrar-por-primera-vez)

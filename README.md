@@ -6,7 +6,7 @@
 
 **Del lote al dictamen, pallet por pallet, desde la tablet y aunque no haya señal.**
 
-[Abrir la app](https://roca-byte.github.io/qualityos/) · [Guía de uso](docs/GUIA.md) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
+[Abrir la app](https://roca-byte.github.io/qualityos/) · [Video (1:30)](docs/video/qualityos-demo.mp4) · [Guía de uso](docs/GUIA.md) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
 
 <img src="docs/img/demo.gif" alt="Recorrido: crear un lote, controlarlo y dictaminarlo" width="280">
 
@@ -23,6 +23,9 @@ Es la primera app que desarrollé y el origen de la suite **QualityOS**. La vers
 usaba Firebase y funcionaba para una sola planta; esta es una **reconstrucción desde cero sobre
 Supabase**, pensada para que varias empresas la usen con la misma instalación, cada una viendo
 solo sus datos.
+
+> **Probala sin cuenta:** abrí la app y tocá **“Probar sin cuenta (demo)”**. Entrás a una empresa de
+> ejemplo con lotes cargados; lo que hagas queda solo en tu navegador y no toca ninguna base real.
 
 ## Qué resuelve
 
@@ -114,12 +117,14 @@ js/config.js             URL y clave pública de Supabase
 js/reglas.js             Reglas de negocio puras: semáforo, peso, litros, dictamen
 js/store.js              Datos en la tablet + bandeja de salida
 js/nube.js               Todo lo que habla con Supabase
+js/demo.js               Servidor de mentira del modo demo (y de las pruebas)
 js/imprimir.js           Registro del lote para imprimir / PDF
 js/app.js                Pantallas y eventos
 sw.js                    Service worker: la app abre sin señal
 supabase/migrations/     Tablas, seguridad (RLS) y funciones, en orden
 tests/                   Pruebas de reglas, base de datos e interfaz
 tools/demo.js            Genera las capturas y el GIF de la guía
+tools/video.js           Graba el video de demostración (MP4)
 docs/                    Guía de uso, guía de Supabase y decisiones de diseño
 ```
 
@@ -130,10 +135,12 @@ node --test 'tests/*.test.js'   # reglas de negocio (solo Node, sin instalar nad
 tests/sql/correr.sh             # tablas y permisos contra un Postgres local
 node tests/e2e/flujo.js         # recorrido completo de la interfaz (Playwright)
 node tests/e2e/primer-uso.js    # cuenta nueva: registro, invitación y bienvenida
+node tests/e2e/demo.js          # modo demo: funciona y no hace ningún pedido a Supabase
 ```
 
-Las capturas de la guía y el GIF se regeneran con `node tools/demo.js` (Playwright y
-ffmpeg, con datos de ejemplo ficticios). Conviene correrlo cada vez que cambia algo visible.
+Las capturas de la guía y el GIF se regeneran con `node tools/demo.js`, y el video con
+`node tools/video.js` (Playwright y ffmpeg, con datos de ejemplo ficticios). Conviene correrlos
+cada vez que cambia algo visible.
 
 ### Instalar una copia propia
 
