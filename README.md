@@ -6,7 +6,9 @@
 
 **Del lote al dictamen, pallet por pallet, desde la tablet y aunque no haya señal.**
 
-[Abrir la app](https://roca-byte.github.io/qualityos/) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
+[Abrir la app](https://roca-byte.github.io/qualityos/) · [Guía de uso](docs/GUIA.md) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
+
+<img src="docs/img/demo.gif" alt="Recorrido: crear un lote, controlarlo y dictaminarlo" width="280">
 
 </div>
 
@@ -54,6 +56,15 @@ solo sus datos.
    [registro de No Conformidades](https://github.com/roca-byte/calidad-no-conformidades).
 
 Todo se ve en el **historial**, con búsqueda por lote, producto o cliente.
+
+La primera vez, la app muestra una **bienvenida** con los pasos según el rol. La
+[guía de uso](docs/GUIA.md) tiene el recorrido completo con capturas.
+
+<p>
+<img src="docs/img/05-control-en-linea.png" alt="Control en línea" width="220">
+<img src="docs/img/08-dictamen.png" alt="Dictamen sugerido" width="220">
+<img src="docs/img/11-historial.png" alt="Historial" width="220">
+</p>
 
 ### Roles
 
@@ -108,7 +119,8 @@ js/app.js                Pantallas y eventos
 sw.js                    Service worker: la app abre sin señal
 supabase/migrations/     Tablas, seguridad (RLS) y funciones, en orden
 tests/                   Pruebas de reglas, base de datos e interfaz
-docs/                    Guía de Supabase y decisiones de diseño
+tools/demo.js            Genera las capturas y el GIF de la guía
+docs/                    Guía de uso, guía de Supabase y decisiones de diseño
 ```
 
 ### Pruebas
@@ -117,7 +129,11 @@ docs/                    Guía de Supabase y decisiones de diseño
 node --test 'tests/*.test.js'   # reglas de negocio (solo Node, sin instalar nada)
 tests/sql/correr.sh             # tablas y permisos contra un Postgres local
 node tests/e2e/flujo.js         # recorrido completo de la interfaz (Playwright)
+node tests/e2e/primer-uso.js    # cuenta nueva: registro, invitación y bienvenida
 ```
+
+Las capturas de la guía y el GIF se regeneran con `node tools/demo.js` (Playwright y
+ffmpeg, con datos de ejemplo ficticios). Conviene correrlo cada vez que cambia algo visible.
 
 ### Instalar una copia propia
 

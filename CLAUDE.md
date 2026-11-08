@@ -36,4 +36,12 @@ Orden de carga: `vendor/supabase.js → config → reglas → store → nube →
 node --test 'tests/*.test.js'     # reglas
 tests/sql/correr.sh               # base (necesita Postgres local; como usuario postgres)
 node tests/e2e/flujo.js [carpeta] # interfaz con Supabase simulado; carpeta = capturas
+node tests/e2e/primer-uso.js      # cuenta nueva, invitación y bienvenida
 ```
+
+## Guía y demo
+- `docs/GUIA.md` es la guía para usuarios, con capturas de `docs/img/`.
+- Si cambia algo visible, regenerar capturas y GIF con `node tools/demo.js` (datos ficticios,
+  Supabase simulado) y revisar que la guía siga diciendo lo que la app hace.
+- La bienvenida de primera vez está en `pantallas.bienvenida` (js/app.js): si cambia el flujo,
+  actualizar sus pasos y la guía juntos.
