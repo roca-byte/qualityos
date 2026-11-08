@@ -6,7 +6,7 @@
 
 **Del lote al dictamen, unidad por unidad, desde la tablet y aunque no haya señal.**
 
-[Abrir la app](https://roca-byte.github.io/qualityos/) · [Video (2:15)](docs/video/qualityos-demo.mp4) · [Guía de uso](docs/GUIA.md) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
+[Abrir la app](https://roca-byte.github.io/qualityos/) · [Video (2:20)](docs/video/qualityos-demo.mp4) · [Guía de uso](docs/GUIA.md) · [Cómo funciona](#cómo-se-usa) · [Diseño](docs/DISENO.md) · [Licencia](#licencia)
 
 <img src="docs/img/demo.gif" alt="Recorrido: crear un lote, controlarlo y dictaminarlo" width="280">
 
