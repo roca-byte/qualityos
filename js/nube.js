@@ -58,7 +58,12 @@ var Nube = (function () {
   }
 
   async function registrarse(email, clave) {
-    var d = dato(await sb().auth.signUp({ email: email, password: clave }));
+    // emailRedirectTo: adónde lleva el link del mail de confirmación. Sin esto Supabase
+    // usa la página de origen que manda el navegador, que es solo el dominio
+    // (https://roca-byte.github.io/) y no la carpeta de la app: el link daba 404.
+    // Se usa la dirección actual sin #/?, así sirve en cualquier hosting o subcarpeta.
+    var aca = location.origin + location.pathname;
+    var d = dato(await sb().auth.signUp({ email: email, password: clave, options: { emailRedirectTo: aca } }));
     // Si el proyecto pide confirmar el email, no hay sesión hasta confirmarlo.
     return { usuario: d.user, necesitaConfirmar: !d.session };
   }
