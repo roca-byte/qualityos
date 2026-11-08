@@ -7,7 +7,7 @@ ejemplo ("Planta Demo") con datos inventados.
 
 > **¿Querés verla antes de tener cuenta?** Abrí la app y tocá **“Probar sin cuenta (demo)”**: entrás a
 > una empresa de ejemplo con lotes cargados. Todo lo que hagas queda solo en tu navegador y cada vez
-> que entrás a la demo arranca de cero. También hay un [video de 1 minuto y medio](video/qualityos-demo.mp4).
+> que entrás a la demo arranca de cero. También hay un [video de 2 minutos](video/qualityos-demo.mp4).
 
 **Contenido**
 
