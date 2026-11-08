@@ -119,7 +119,10 @@
 
   function entrarA(p) {
     Store.setPerfil(p);
-    ir('inicio');
+    // La primera vez de esta persona en este equipo (o si todavía no cargó su nombre,
+    // que sale en la firma del dictamen) se muestra la bienvenida en vez de la lista.
+    if (!p.nombre || !Store.guiaVista(p.userId)) ir('bienvenida');
+    else ir('inicio');
     programarSync(0);
   }
 
@@ -229,6 +232,44 @@
       '</form><button class="btn chico" data-act="salir">Salir</button></section>';
   };
 
+  var GUIA_URL = 'https://github.com/roca-byte/qualityos/blob/main/docs/GUIA.md';
+
+  // Pasos de la bienvenida según el rol: cada uno ve lo que le toca hacer primero.
+  var PASOS_INSPECTOR = [
+    ['Creá el lote', 'Tocá <b>+ Nuevo lote</b> y cargá producto, n° de lote, cliente, línea y el rango de peso por pico.'],
+    ['Controlá en línea', 'Pallet por pallet: los 4 pesos, la identificación y OK/NOK de inducción, QR, packaging y paletizado. Si corregiste un NOK en el momento, marcalo como <b>Reprocesado</b>.'],
+    ['Hacé el control final', 'Revisá cada pallet. Si está todo bien, <b>✓ Todo OK</b> lo completa de un toque.'],
+    ['Dictaminá', 'La app sugiere Aprobado, Aprobado parcial o Retenido según el control final. Vos decidís.'],
+    ['Guardá el registro', '<b>Imprimir / PDF</b> arma el registro del lote listo para archivar.']
+  ];
+  var PASOS_ADMIN = [
+    ['Configurá la empresa', 'En <b>⚙</b> cargá las inductoras con sus tolerancias, las líneas y los datos del registro (código, versión, quién elaboró y aprobó).'],
+    ['Invitá a tu equipo', 'En <b>⚙ → Personas</b> escribí el email y el rol de cada persona. Ellas crean su cuenta con ese mismo email y quedan adentro.'],
+    ['Probá un lote', 'Creá un lote de prueba para ver el circuito completo: control en línea, control final, dictamen y PDF.']
+  ];
+
+  pantallas.bienvenida = function () {
+    var p = perfil();
+    var pasos = p.rol === 'admin' ? PASOS_ADMIN : PASOS_INSPECTOR;
+    var extra = p.rol === 'coordinacion'
+      ? '<p class="ayuda">Como <b>Coordinación</b> además podés dictaminar con pallets pendientes, reabrir o corregir lotes dictaminados y borrar lotes.</p>'
+      : '';
+    return '<section class="tarjeta angosta bienvenida">' +
+      '<h2>¡Bienvenido/a a QualityOS!</h2>' +
+      '<p class="meta">' + esc(p.empresa) + ' · ' + esc(ROLES[p.rol]) + '</p>' +
+      '<form data-form="bienvenida">' +
+      '<label>Tu nombre (sale en la firma del dictamen)<input name="nombre" required autocomplete="name" value="' + esc(p.nombre || '') + '"></label>' +
+      '<h3>Cómo empezar</h3><ol class="pasos">' + pasos.map(function (x) {
+        return '<li><b>' + x[0] + '</b><span>' + x[1] + '</span></li>';
+      }).join('') + '</ol>' + extra +
+      '<p class="ayuda">📶 <b>Funciona sin señal.</b> Arriba a la derecha ves si está todo subido (☁ Al día) ' +
+      'o si quedan cambios por subir: se suben solos cuando vuelve la conexión.</p>' +
+      '<button class="btn primario" type="submit">Empezar</button>' +
+      '</form>' +
+      '<a class="btn chico" href="' + GUIA_URL + '" target="_blank" rel="noopener">Ver la guía completa con capturas</a>' +
+      '</section>';
+  };
+
   pantallas.inicio = function () {
     var todos = Store.lotes().sort(function (a, b) {
       return String(b.datos.cab.fecha).localeCompare(String(a.datos.cab.fecha));
@@ -241,7 +282,7 @@
     var cuerpo;
     if (ui.tab === 'activos') {
       cuerpo = '<button class="btn primario grande" data-act="nuevo">+ Nuevo lote</button>' +
-        (activos.length ? activos.map(tarjetaLote).join('') : '<p class="vacio">No hay lotes en control.</p>');
+        (activos.length ? activos.map(tarjetaLote).join('') : listaVacia());
     } else {
       var t = ui.busqueda.toLowerCase();
       var locales = cerrados.filter(function (l) {
@@ -258,6 +299,15 @@
     }
     return tabs + cuerpo;
   };
+
+  // Lista vacía con una pista de qué hacer (sobre todo la primera vez).
+  function listaVacia() {
+    var sinConfig = esAdmin() && !(perfil().config && perfil().config.inductoras);
+    return '<div class="vacio"><p>No hay lotes en control.</p>' +
+      (sinConfig
+        ? '<p class="ayuda">Antes del primer lote, cargá tus inductoras y líneas en <b>⚙</b>.</p>'
+        : '<p class="ayuda">Tocá <b>+ Nuevo lote</b> para empezar.</p>') + '</div>';
+  }
 
   function tarjetaLote(l) {
     var d = l.datos, c = d.cab;
@@ -460,7 +510,8 @@
     var html = '<section class="tarjeta"><h2>Mi perfil</h2><p class="meta">' + esc(p.email) + ' · ' + esc(ROLES[p.rol]) + ' en ' + esc(p.empresa) + '</p>' +
       '<form data-form="mi-nombre"><label>Mi nombre<input name="nombre" required value="' + esc(p.nombre) + '"></label>' +
       '<button class="btn" type="submit">Guardar nombre</button></form>' +
-      '<div class="acciones"><button class="btn" data-act="respaldo">Descargar respaldo (.json)</button>' +
+      '<div class="acciones"><button class="btn" data-act="bienvenida">Ver la guía de bienvenida</button>' +
+      '<button class="btn" data-act="respaldo">Descargar respaldo (.json)</button>' +
       '<button class="btn" data-act="cambiar-empresa">Cambiar de empresa</button></div></section>';
     if (!esAdmin()) return html + '<button class="btn" data-act="inicio">Volver</button>';
     html += '<section class="tarjeta"><h2>Empresa</h2><form data-form="config">' +
@@ -596,6 +647,7 @@
     },
     'editar-cab': function () { ir('nuevo', { loteId: ui.loteId }); },
     config: function () { ir('config'); },
+    bienvenida: function () { ir('bienvenida'); },
     conflictos: function () { ir('conflictos'); },
     conflicto: function (b) {
       Store.resolverConflicto(Number(b.dataset.i), b.dataset.v);
@@ -746,6 +798,18 @@
   };
 
   var formularios = {
+    bienvenida: async function (f) {
+      var p = perfil();
+      var nombre = f.nombre.value.trim();
+      if (nombre !== p.nombre) {
+        // Sin señal se guarda igual en la tablet; el servidor se actualiza la próxima vez que se guarde el nombre.
+        try { await Nube.cambiarMiNombre(p.empresaId, nombre); }
+        catch (e) { aviso('Tu nombre quedó guardado en este equipo. Para que lo vea el resto, guardalo de nuevo en ⚙ con señal.'); }
+        Store.setPerfil(Object.assign({}, perfil(), { nombre: nombre }));
+      }
+      Store.marcarGuiaVista(p.userId);
+      ir('inicio');
+    },
     login: async function (f) {
       ui.email = f.email.value.trim(); // si falla, el email no se tiene que volver a tipear
       esperando(f.querySelector('[type=submit]'), 'Ingresando…');

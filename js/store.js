@@ -7,6 +7,7 @@
  * Forma de los datos (clave 'qualityos.v1'):
  * {
  *   perfil: { userId, email, nombre, empresaId, empresa, rol, config } | null,
+ *   guias: { <userId>: true },   // ya vio la bienvenida en este equipo
  *   empresas: {
  *     <empresaId>: {
  *       lotes: { <id>: { datos, version, modificado, borrado, pendiente, cambios, borrar } },
@@ -56,6 +57,14 @@ var Store = (function () {
   // ── Perfil (quién está usando la tablet y en qué empresa) ──
   function perfil() { return estado.perfil; }
   function setPerfil(p) { estado.perfil = p; guardar(); }
+
+  // ── Bienvenida: se muestra una vez por persona en cada equipo ──
+  function guiaVista(userId) { return !!(estado.guias && estado.guias[userId]); }
+  function marcarGuiaVista(userId) {
+    estado.guias = estado.guias || {};
+    estado.guias[userId] = true;
+    guardar();
+  }
 
   // ── Lotes ──
   function lotes() {
@@ -180,7 +189,7 @@ var Store = (function () {
   }
 
   return {
-    perfil: perfil, setPerfil: setPerfil,
+    perfil: perfil, setPerfil: setPerfil, guiaVista: guiaVista, marcarGuiaVista: marcarGuiaVista,
     lotes: lotes, lote: lote, crear: crear, cambiar: cambiar, borrar: borrar,
     pendientes: pendientes, confirmar: confirmar, conflicto: conflicto,
     conflictos: conflictos, resolverConflicto: resolverConflicto,

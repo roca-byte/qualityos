@@ -71,6 +71,8 @@ input, select, textarea { min-height: 48px; padding: 8px 10px; border: 1.5px sol
   border-radius: var(--r); background: var(--surface); color: var(--text); font-size: 16px; width: 100%; }
 input[type=checkbox] { width: 24px; min-height: 24px; }
 input.corto { width: 110px; }
+/* La hora necesita más lugar: en navegadores en inglés se agrega "AM/PM" y se cortaba. */
+input.corto[type=time] { width: 140px; }
 input:focus, select:focus, textarea:focus { border-color: var(--teal-lit); outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal-lit) 25%, transparent); }
 :focus-visible { outline: 3px solid var(--teal-lit); outline-offset: 2px; }
@@ -266,3 +268,17 @@ body.en-acceso {
   .i-firma { margin-top: 8px; }
   .i-pie { margin-top: 8px; text-align: right; color: #777; font-size: 8px; }
 }
+
+/* ── Bienvenida (primera vez): pasos numerados según el rol ── */
+.bienvenida h3 { margin-top: 14px; }
+.pasos { list-style: none; counter-reset: paso; padding: 0; margin: 0 0 10px; }
+.pasos li { counter-increment: paso; position: relative; padding: 0 0 12px 44px; min-height: 32px; }
+.pasos li::before { content: counter(paso); position: absolute; left: 0; top: 0; width: 30px; height: 30px;
+  border-radius: 50%; background: var(--teal); color: #fff; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; }
+.pasos li > b { display: block; }
+.pasos li span b { color: var(--text); }
+.pasos li span { color: var(--muted); font-size: 14px; }
+a.btn { text-decoration: none; }
+.bienvenida > a.btn { width: 100%; }
+.vacio p { margin: 4px 0; }

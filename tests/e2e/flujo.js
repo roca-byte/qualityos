@@ -56,7 +56,13 @@ function servidor() {
   await page.fill('input[name=nombre]', 'Maxi');
   await page.fill('input[name=empresa]', 'Planta <Prueba>');
   await page.click('text=Crear empresa');
+  // Primera vez: bienvenida con los pasos de Administración y el nombre ya cargado.
+  await page.waitForSelector('text=Cómo empezar');
+  assert.equal(await page.inputValue('input[name=nombre]'), 'Maxi');
+  assert.match(await page.textContent('.pasos'), /Invitá a tu equipo/);
+  await page.click('button[type=submit]:has-text("Empezar")');
   await page.waitForSelector('text=+ Nuevo lote');
+  assert.match(await page.textContent('main'), /cargá tus inductoras y líneas/, 'admin sin configurar: pista de ⚙');
   assert.equal(await page.textContent('#empresa-nombre'), 'Planta <Prueba>', 'el nombre se muestra como texto, no HTML');
   paso('ingreso con error de clave, creación de empresa');
 
