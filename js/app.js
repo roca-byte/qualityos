@@ -43,7 +43,7 @@
   }
 
   function ir(pantalla, extra) {
-    Object.assign(ui, { pantalla: pantalla, mensaje: '' }, extra || {});
+    Object.assign(ui, { pantalla: pantalla, mensaje: '', tipoMensaje: '' }, extra || {});
     dibujar();
     window.scrollTo(0, 0);
   }
@@ -161,16 +161,48 @@
       'Los pasos están en <code>docs/SUPABASE.md</code>.</p></section>';
   };
 
-  pantallas.login = function () {
-    return '<section class="tarjeta angosta"><h2>Ingresar</h2>' +
-      (ui.mensaje ? '<p class="error">' + esc(ui.mensaje) + '</p>' : '') +
-      '<form data-form="login">' +
-      '<label>Email<input name="email" type="email" autocomplete="username" required value="' + esc(ui.email || '') + '"></label>' +
-      '<label>Clave<input name="clave" type="password" autocomplete="current-password" minlength="6" required></label>' +
-      '<button class="btn primario" type="submit">Ingresar</button>' +
-      '<button class="btn" type="button" data-act="registrarse">Crear cuenta nueva</button>' +
-      '</form><p class="ayuda">Si te invitaron, creá tu cuenta con el mismo email de la invitación.</p></section>';
+  // Íconos de línea (heredados del login de la QualityOS original). currentColor = toman el color del texto.
+  var ICONO = {
+    mail: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M2 7l8 5 8-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    candado: '<svg width="15" height="16" viewBox="0 0 20 22" fill="none" aria-hidden="true"><rect x="3" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 10V7a3 3 0 0 1 6 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="15.5" r="1.2" fill="currentColor"/></svg>',
+    ojo: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><line class="tachado" x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
   };
+
+  // Pantalla de acceso: diseño del login de la QualityOS original (logo grande, tarjeta
+  // centrada, íconos, ojito para la clave) adaptado a la paleta y la tipografía de la suite.
+  // Solo "Ingresar" es submit: así Enter siempre ingresa y "Crear cuenta" no se dispara sin querer.
+  pantallas.login = function () {
+    var enLinea = navigator.onLine !== false;
+    return '<section class="acceso">' +
+      '<div class="acceso-marca">' +
+      '<span class="acceso-logo"><img src="./icons/qualityos.svg" alt=""></span>' +
+      '<h1 class="acceso-nombre">Quality<span>OS</span></h1>' +
+      '<p class="acceso-sub">Sistema de gestión de calidad</p></div>' +
+      '<div class="tarjeta acceso-tarjeta"><h2>Ingresar</h2>' +
+      (ui.mensaje ? '<p class="' + (ui.tipoMensaje === 'info' ? 'info' : 'error') + '" role="status">' + esc(ui.mensaje) + '</p>' : '') +
+      '<form data-form="login">' +
+      '<label><span class="etq">' + ICONO.mail + 'Email</span>' +
+      '<input name="email" type="email" autocomplete="username" placeholder="usuario@empresa.com" required value="' + esc(ui.email || '') + '"></label>' +
+      '<label><span class="etq">' + ICONO.candado + 'Clave</span><span class="con-ojo">' +
+      '<input name="clave" type="password" autocomplete="current-password" minlength="6" required>' +
+      '<button type="button" class="ojo" data-act="ver-clave" aria-label="Mostrar clave" aria-pressed="false">' + ICONO.ojo + '</button>' +
+      '</span></label>' +
+      '<button class="btn primario" type="submit">Ingresar</button>' +
+      '</form>' +
+      '<div class="separador"><span>¿Es tu primera vez?</span></div>' +
+      '<button class="btn" type="button" data-act="registrarse">Crear cuenta nueva</button>' +
+      '<p class="ayuda">Si te invitaron, creá tu cuenta con el mismo email de la invitación. ' +
+      '¿Problemas para ingresar? Pedile ayuda a quien administra tu empresa.</p></div>' +
+      '<p class="acceso-pie"><span class="punto' + (enLinea ? '' : ' sin-red') + '"></span>' +
+      (enLinea ? 'En línea' : 'Sin señal: vas a poder ingresar cuando vuelva') + '</p>' +
+      '</section>';
+  };
+
+  // Mientras espera al servidor: botón deshabilitado con spinner (como en la versión original).
+  function esperando(boton, texto) {
+    boton.disabled = true;
+    boton.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + texto;
+  }
 
   pantallas.empresa = function () {
     var ms = ui.membresias || [];
@@ -482,6 +514,8 @@
     var p = perfil();
     document.getElementById('empresa-nombre').textContent = p && ui.pantalla !== 'login' ? p.empresa : '';
     document.getElementById('menu').hidden = !p || ['login', 'empresa', 'sinConfig'].indexOf(ui.pantalla) >= 0;
+    // En la pantalla de acceso no va la barra: el logo grande cumple esa función.
+    document.body.classList.toggle('en-acceso', ui.pantalla === 'login');
     vista.innerHTML = (pantallas[ui.pantalla] || pantallas.cargando)();
     estadoNube();
   }
@@ -644,12 +678,22 @@
         function () { aviso('No se pudo copiar'); });
     },
 
+    'ver-clave': function (b) {
+      var input = b.parentNode.querySelector('input');
+      var ver = input.type === 'password';
+      input.type = ver ? 'text' : 'password';
+      b.setAttribute('aria-pressed', String(ver));
+      b.setAttribute('aria-label', ver ? 'Ocultar clave' : 'Mostrar clave');
+    },
     registrarse: async function () {
       var f = document.querySelector('[data-form="login"]');
       if (!f.reportValidity()) return;
+      ui.email = f.email.value.trim();
+      esperando(document.querySelector('[data-act="registrarse"]'), 'Creando cuenta…');
       try {
         var r = await Nube.registrarse(f.email.value.trim(), f.clave.value);
-        if (r.necesitaConfirmar) return ir('login', { mensaje: 'Te mandamos un email para confirmar la cuenta. Confirmala y después ingresá.' });
+        // No es un error: va con estilo de aviso, no en rojo.
+        if (r.necesitaConfirmar) return ir('login', { mensaje: 'Te mandamos un email para confirmar la cuenta. Confirmala y después ingresá.', tipoMensaje: 'info' });
         await elegirEmpresa(r.usuario, '');
       } catch (e) { ir('login', { mensaje: e.message }); }
     },
@@ -698,6 +742,7 @@
   var formularios = {
     login: async function (f) {
       ui.email = f.email.value.trim(); // si falla, el email no se tiene que volver a tipear
+      esperando(f.querySelector('[type=submit]'), 'Ingresando…');
       try {
         var u = await Nube.entrar(f.email.value.trim(), f.clave.value);
         await elegirEmpresa(u, '');

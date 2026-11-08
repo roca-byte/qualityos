@@ -7,7 +7,7 @@
   --bg: #eef3f3; --surface: #ffffff; --surface2: #f6f9f9; --border: #d2dfe0;
   --teal: #0f5c6e; --teal-deep: #0a4654; --teal-lit: #0f5c6e;
   --green: #1f8a4c; --warn: #a96400; --danger: #b3261e;
-  --text: #12262d; --muted: #5c7077;
+  --text: #12262d; --muted: #5c7077; --accent: #00a884;
   --ok-bg: #e3f4ea; --warn-bg: #fdf1dc; --nok-bg: #fbe5e3;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
   --font: "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
@@ -19,13 +19,15 @@
     --bg: #0c171c; --surface: #122329; --surface2: #172d34; --border: #294149;
     --teal-lit: #3ddc97;
     --green: #5cc278; --warn: #f0a83c; --danger: #f07a70;
-    --text: #e7f0f1; --muted: #9fb2b7;
+    --text: #e7f0f1; --muted: #9fb2b7; --accent: #3ddc97;
     --ok-bg: #173322; --warn-bg: #3a2c12; --nok-bg: #3d1c1a;
     --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 10px 28px rgba(0, 0, 0, .2);
   }
 }
 
 * { box-sizing: border-box; }
+/* El atributo hidden siempre gana: sin esto, .barra nav (display:flex) mostraba ⚙ y Salir antes de entrar. */
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.4 var(--font); font-variant-numeric: tabular-nums; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -45,6 +47,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Sobre el teal los botones van translúcidos, como en las otras apps. */
 .barra .btn { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .24); color: #fff; }
 /* Estado de sincronización como "chip" blanco; el color de fondo marca si hay problema. */
+.nube:empty { display: none; }
 .nube { font-size: .78rem; padding: 4px 10px; border-radius: 99px; white-space: nowrap; background: rgba(255, 255, 255, .18); }
 .nube.warn { background: #fdf1dc; color: #a96400; }
 .nube.nok { background: #fbe5e3; color: #b3261e; cursor: pointer; }
@@ -176,6 +179,60 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   transition: .25s; z-index: 10; max-width: 92vw; pointer-events: none; }
 #aviso.visible { opacity: 1; transform: translate(-50%, 0); }
 code { font-family: var(--mono); font-size: 14px; }
+/* ── Pantalla de acceso ──
+   Basada en el login de la QualityOS original: logo grande, tarjeta centrada, grilla de
+   fondo con un brillo teal, íconos en los campos y ojito para la clave. */
+body.en-acceso .barra { display: none; }
+body.en-acceso {
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 10%, color-mix(in srgb, var(--teal) 14%, transparent), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 85% 90%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    linear-gradient(color-mix(in srgb, var(--teal) 6%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, color-mix(in srgb, var(--teal) 6%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+    var(--bg);
+  min-height: 100dvh;
+}
+.acceso { max-width: 420px; margin: 0 auto; min-height: calc(100dvh - 92px);
+  display: flex; flex-direction: column; justify-content: center; padding-top: env(safe-area-inset-top, 0px); }
+.acceso-marca { display: flex; flex-direction: column; align-items: center; text-align: center; margin: 12px 0 22px;
+  animation: subir .5s cubic-bezier(.22, .68, 0, 1.2) both; }
+/* Claro: la Q va sobre un cuadro teal (como el ícono de la app). Oscuro: la Q suelta, como el original. */
+.acceso-logo { width: 96px; height: 96px; display: grid; place-items: center; border-radius: 24px;
+  background: var(--teal); box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, .16); margin-bottom: 14px; }
+.acceso-logo img { width: 64px; height: 68px; display: block; }
+@media (prefers-color-scheme: dark) {
+  .acceso-logo { background: none; box-shadow: none; }
+  .acceso-logo img { width: 84px; height: 89px; }
+}
+.acceso-nombre { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: .01em; line-height: 1.1; }
+.acceso-nombre span { color: var(--accent); }
+.acceso-sub { margin: 6px 0 0; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.acceso-tarjeta { padding: 22px 20px 18px; animation: subir .5s .08s cubic-bezier(.22, .68, 0, 1.2) both; }
+.acceso-tarjeta h2 { margin-bottom: 14px; }
+.etq { display: inline-flex; align-items: center; gap: 6px; }
+.etq svg { opacity: .8; }
+.con-ojo { position: relative; display: block; }
+.con-ojo input { padding-right: 52px; }
+.ojo { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 48px; height: 44px;
+  display: grid; place-items: center; background: none; border: 0; color: var(--muted); cursor: pointer; border-radius: var(--r); }
+.ojo:hover { color: var(--text); }
+.ojo .tachado { display: none; }
+.ojo[aria-pressed="true"] .tachado { display: inline; }
+.separador { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 6px 0 2px; }
+.separador::before, .separador::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.acceso-tarjeta > .btn { width: 100%; margin: 6px 0 4px; }
+.acceso-pie { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 0;
+  font-size: 13px; color: var(--muted); }
+.punto { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: latido 2.4s ease-in-out infinite; }
+.punto.sin-red { background: var(--warn); }
+.info { color: var(--text); background: var(--ok-bg); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+  padding: 8px 10px; border-radius: var(--r); }
+.spinner { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; animation: girar .65s linear infinite; }
+@keyframes subir { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes latido { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.75); } }
+@keyframes girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .acceso-marca, .acceso-tarjeta, .punto { animation: none; } }
 #imprimir { display: none; }
 
 /* ── Impresión: solo el informe, A4 apaisado, en blanco y negro legible ── */
