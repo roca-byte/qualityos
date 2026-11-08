@@ -311,3 +311,8 @@ a.btn { text-decoration: none; }
 .ed-item label.inline { margin: 6px 0; }
 /* Los nombres de los ítems los escribe cada empresa ("pH", "°Brix"): se respetan tal cual. */
 .items .g-tit { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; }
+
+/* Historial de versiones de la plantilla (codificación del registro) */
+details.historial { margin: 8px 0 4px; }
+details.historial ul { padding-left: 18px; margin: 6px 0; font-size: 14px; }
+details.historial li { margin-bottom: 6px; }

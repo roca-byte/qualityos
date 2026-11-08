@@ -69,6 +69,9 @@ var Imprimir = (function () {
     var l = lote.datos;
     var cab = l.cab, p = l.plantilla;
     var res = Reglas.resumenFinal(l);
+    // Codificación de la plantilla que el lote guardó: un lote viejo sale con la versión
+    // con la que se hizo, aunque la plantilla ya vaya por otra.
+    var doc = Reglas.docDe(p, config);
     var rangos = p.linea.concat(p.final).filter(function (it) { return it.tipo === 'medicion' && it.tolerancia === 'lote' && Reglas.rango(it, cab); })
       .map(function (it) {
         var r = Reglas.rango(it, cab);
@@ -79,7 +82,8 @@ var Imprimir = (function () {
       '<table class="i-cab"><tr>' +
       '<td class="i-empresa">' + esc(empresa) + '</td>' +
       '<td class="i-titulo">Control de Calidad de Lote<br><small>' + esc(p.nombre) + '</small></td>' +
-      '<td class="i-doc">Código: ' + esc(config.docCodigo || 'REG-01') + '<br>Versión: ' + esc(config.docVersion || '00') + '</td>' +
+      '<td class="i-doc">Código: ' + esc(doc.codigo || '—') + '<br>Versión: ' + esc(doc.version || '—') +
+      (doc.vigencia ? '<br>Vigencia: ' + esc(Reglas.fechaLarga(doc.vigencia)) : '') + '</td>' +
       '</tr></table>';
 
     var datos =
@@ -138,7 +142,7 @@ var Imprimir = (function () {
       '<th>Fecha</th><td>' + esc(f.fechaDictamen || '—') + '</td></tr>' +
       (l.cierreForzado ? '<tr><td colspan="6">⚠ Dictaminado con ' + esc(l.cierreForzado.faltantes) + ' ' + esc(p.unidades.toLowerCase()) +
         ' sin completar, autorizado por ' + esc(l.cierreForzado.por) + '</td></tr>' : '') +
-      '<tr><th>Elaboró</th><td>' + esc(config.docElab || '') + '</td><th>Aprobó</th><td colspan="3">' + esc(config.docAprob || '') + '</td></tr></table>';
+      '<tr><th>Elaboró</th><td>' + esc(doc.elaboro || '') + '</td><th>Aprobó</th><td colspan="3">' + esc(doc.aprobo || '') + '</td></tr></table>';
 
     return '<div class="informe">' + encabezado + datos + linea + final + obs + dictamen +
       '<div class="i-pie">QualityOS · ' + esc(empresa) + '</div></div>';

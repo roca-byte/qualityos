@@ -256,7 +256,7 @@
     ['Guardá el registro', '<b>Imprimir / PDF</b> arma el registro del lote listo para archivar.']
   ];
   var PASOS_ADMIN = [
-    ['Armá tus plantillas de control', 'En <b>⚙ → Plantillas</b> definí qué se controla en tu planta (mediciones con tolerancia, OK/NOK, datos). Podés empezar desde un ejemplo de tu rubro. Cargá también las líneas y los datos del registro.'],
+    ['Armá tus plantillas de control', 'En <b>⚙ → Plantillas</b> definí qué se controla en tu planta (mediciones con tolerancia, OK/NOK, datos). Podés empezar desde un ejemplo de tu rubro. Cada plantilla lleva la codificación del registro (código, versión, vigencia). Cargá también las líneas.'],
     ['Invitá a tu equipo', 'En <b>⚙ → Personas</b> escribí el email y el rol de cada persona. Ellas crean su cuenta con ese mismo email y quedan adentro.'],
     ['Probá un lote', 'Creá un lote de prueba para ver el circuito completo: control en línea, control final, dictamen y PDF.']
   ];
@@ -380,6 +380,12 @@
       '</form></section>';
   };
 
+  // "Envasado de líquidos (REG-01 v03)": nombre de la plantilla con su codificación.
+  function nombreRegistro(p) {
+    var doc = Reglas.docDe(p, config());
+    return p.nombre + (doc.codigo ? ' (' + doc.codigo + ' v' + doc.version + ')' : '');
+  }
+
   // Rangos cargados en el lote, para mostrar: "Peso por pico 10–11 kg".
   function textoRangos(d) {
     var r = d.cab.rangos || {};
@@ -398,7 +404,7 @@
       '<button class="btn chico" data-act="inicio">← Lotes</button>' +
       '<span class="li-estado estado-' + esc(d.estado) + '">' + esc(ESTADOS[d.estado]) + '</span></div>' +
       '<h2>' + esc(c.lote) + ' · ' + esc(c.prod) + '</h2>' +
-      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), d.plantilla.nombre].concat(textoRangos(d))
+      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), nombreRegistro(d.plantilla)].concat(textoRangos(d))
         .filter(Boolean).map(esc).join(' · ') + '</p>' +
       (ed ? '<button class="btn chico" data-act="editar-cab">Editar datos</button>' : '') +
       (!ed ? '<p class="ayuda">Lote dictaminado: solo coordinación lo puede modificar.</p>' : '') + '</section>';
@@ -579,10 +585,7 @@
     if (!esAdmin()) return html + '<button class="btn" data-act="inicio">Volver</button>';
     html += '<section class="tarjeta"><h2>Empresa</h2><form data-form="config">' +
       '<label>Nombre<input name="nombre" required value="' + esc(p.empresa) + '"></label>' +
-      '<div class="fila2"><label>Código del registro<input name="docCodigo" value="' + esc(cfg.docCodigo) + '"></label>' +
-      '<label>Versión<input name="docVersion" value="' + esc(cfg.docVersion) + '"></label></div>' +
-      '<div class="fila2"><label>Elaboró<input name="docElab" value="' + esc(cfg.docElab) + '"></label>' +
-      '<label>Aprobó<input name="docAprob" value="' + esc(cfg.docAprob) + '"></label></div>' +
+      '<p class="ayuda">La codificación del registro (código, versión, vigencia, quién elaboró y aprobó) va en cada plantilla de control.</p>' +
       '<label>Líneas (separadas por coma)<input name="lineas" value="' + esc((cfg.lineas || []).join(', ')) + '"></label>' +
       '<button class="btn primario" type="submit">Guardar configuración</button></form></section>' +
       seccionPlantillas() +
@@ -600,8 +603,9 @@
       '<p class="ayuda">Qué se controla en cada lote: mediciones con tolerancia, OK/NOK, datos y fechas. ' +
       'Armá una por tipo de producto o de línea; al crear un lote se elige cuál usar.</p>' +
       ps.map(function (p, i) {
-        var n = p.linea.length + p.final.length;
-        return '<div class="fila-plantilla"><span><b>' + esc(p.nombre) + '</b><small>' + n + ' ítem' + (n === 1 ? '' : 's') +
+        var n = p.linea.length + p.final.length, doc = Reglas.docDe(p, config());
+        return '<div class="fila-plantilla"><span><b>' + esc(p.nombre) + '</b><small>' +
+          (doc.codigo ? esc(doc.codigo) + ' · versión ' + esc(doc.version) + ' · ' : '') + n + ' ítem' + (n === 1 ? '' : 's') +
           ' · por ' + esc(nombreUnidad(p, 1)) + '</small></span>' +
           '<button class="btn chico" data-act="editar-plantilla" data-i="' + i + '">Editar</button>' +
           '<button class="btn chico" data-act="duplicar-plantilla" data-i="' + i + '">Duplicar</button>' +
@@ -612,7 +616,7 @@
       '<button class="btn" data-act="nueva-plantilla">+ Nueva plantilla</button></div></section>';
   }
 
-  pantallas.plantilla = function () { return Editor.html(ui.edit, ui.editIdx < 0); };
+  pantallas.plantilla = function () { return Editor.html(ui.edit, ui.editIdx < 0, Reglas.docDe(ui.edit, config())); };
 
   // Guarda la lista de plantillas en la configuración de la empresa.
   async function guardarPlantillas(lista) {
@@ -891,6 +895,8 @@
       var p = Reglas.copia(plantillasEmpresa()[Number(b.dataset.i)]);
       p.id = 'p' + Date.now().toString(36);
       p.nombre += ' (copia)';
+      // Una copia es otro registro: necesita su propio código y arranca su propia historia.
+      p.doc = Object.assign(Reglas.docDe(p, config()), { codigo: '', version: '00', vigencia: Reglas.hoy(), historial: [] });
       ir('plantilla', { edit: p, editIdx: -1 });
     },
     'borrar-plantilla': async function (b) {
@@ -986,7 +992,29 @@
       var problema = Reglas.validarPlantilla(ui.edit);
       if (problema) return aviso(problema);
       var ps = plantillasEmpresa().slice();
-      if (ui.editIdx < 0) ps.push(ui.edit); else ps[ui.editIdx] = ui.edit;
+      var p = Reglas.copia(ui.edit), doc = p.doc, motivo = p.cambio;
+      delete p.cambio;
+      var repetido = ps.filter(function (x, i) { return i !== ui.editIdx && Reglas.docDe(x, config()).codigo === doc.codigo; })[0];
+      if (repetido) return aviso('El código ' + doc.codigo + ' ya lo usa la plantilla "' + repetido.nombre + '".');
+      // Control de cambios (ISO 9001, 7.5.3): si cambió qué se controla, corresponde una versión
+      // nueva. Se ofrece; se puede rechazar para correcciones menores (un texto mal escrito).
+      var anterior = ui.editIdx >= 0 ? ps[ui.editIdx] : null;
+      var versionAnterior = anterior ? Reglas.docDe(anterior, config()).version : null;
+      if (anterior && doc.version === versionAnterior && Reglas.cambioContenido(anterior, p)) {
+        var nueva = Reglas.siguienteVersion(doc.version);
+        if (confirm('Cambiaste qué se controla, pero la versión sigue siendo ' + doc.version + '.\n' +
+            '¿Guardar como versión ' + nueva + '? La norma pide identificar cada cambio del registro.\n' +
+            '(Cancelar = guardar sin cambiar la versión, por ejemplo si solo corregiste un texto.)')) {
+          doc.version = nueva;
+          doc.vigencia = Reglas.hoy();
+        }
+      }
+      if (!anterior || doc.version !== versionAnterior) {
+        doc.historial = doc.historial.concat([{ version: doc.version, fecha: Reglas.hoy(), por: perfil().nombre || perfil().email,
+          cambio: motivo || (anterior ? '' : 'Creación del registro') }]);
+      }
+      ui.edit = p;
+      if (ui.editIdx < 0) ps.push(p); else ps[ui.editIdx] = p;
       try { await guardarPlantillas(ps); aviso('Plantilla guardada'); ir('config'); }
       catch (e) { aviso(e.message); }
     },
@@ -1006,8 +1034,6 @@
     },
     config: async function (f) {
       var cfg = Object.assign({}, config(), {
-        docCodigo: f.docCodigo.value.trim(), docVersion: f.docVersion.value.trim(),
-        docElab: f.docElab.value.trim(), docAprob: f.docAprob.value.trim(),
         lineas: f.lineas.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean),
         plantillas: plantillasEmpresa()
       });

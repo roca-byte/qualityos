@@ -163,10 +163,18 @@ var Demo = (function () {
   // En el navegador Reglas ya está cargado; desde Node (tools/) se pide.
   var R = typeof Reglas !== 'undefined' ? Reglas : require('./reglas.js');
 
-  function plantilla(clave, id) { var p = R.plantillaEjemplo(clave); p.id = id; return p; }
+  function plantilla(clave, id, doc) { var p = R.plantillaEjemplo(clave); p.id = id; p.doc = doc; return p; }
 
   var CONFIG_EJEMPLO = {
-    plantillas: [plantilla('agro', 'agro'), plantilla('alimentos', 'alimentos')],
+    plantillas: [
+      plantilla('agro', 'agro', { codigo: 'REG-01', version: '03', vigencia: '2026-09-01', elaboro: 'Laura Gómez', aprobo: 'Pablo Díaz',
+        historial: [
+          { version: '01', fecha: '2026-03-10', por: 'Laura Gómez', cambio: 'Creación del registro' },
+          { version: '02', fecha: '2026-06-15', por: 'Laura Gómez', cambio: 'Se agrega el control de QR en línea' },
+          { version: '03', fecha: '2026-09-01', por: 'Pablo Díaz', cambio: 'Inducción con tolerancia 1,0–1,4 y semáforo' }] }),
+      plantilla('alimentos', 'alimentos', { codigo: 'REG-02', version: '01', vigencia: '2026-10-01', elaboro: 'Laura Gómez', aprobo: 'Pablo Díaz',
+        historial: [{ version: '01', fecha: '2026-10-01', por: 'Laura Gómez', cambio: 'Creación del registro' }] })
+    ],
     lineas: ['Env-01', 'Env-02', 'Env-04'],
     docCodigo: 'REG-01', docVersion: '03', docElab: 'Laura Gómez', docAprob: 'Coordinación de Calidad'
   };

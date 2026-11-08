@@ -90,18 +90,21 @@ function preparar() {
   // Reloj en el 11/11: los campos de fecha muestran el formato del navegador y ese día se lee igual.
   await page.clock.setFixedTime(new Date('2026-11-11T10:30:00-03:00'));
   page.on('dialog', d => d.accept());
+  // Si algo no aparece, que falle enseguida y avise: con la espera normal (30 s) el video
+  // quedaba con la pantalla quieta medio minuto sin que nadie se enterara.
+  page.setDefaultTimeout(5000);
   page.on('pageerror', e => { throw e; });
 
   const espera = ms => page.waitForTimeout(ms);
-  const cartel = async (t, d, ms) => { await page.evaluate(([a, b]) => window.vCartel(a, b), [t, d || '']); await espera(ms || 2200); };
+  const cartel = async (t, d, ms) => { await page.evaluate(([a, b]) => window.vCartel(a, b), [t, d || '']); await espera(ms || 3000); };
   const placa = async (html, ms) => { await page.evaluate(h => window.vPlaca(h), html); await espera(ms); };
   // Lleva el elemento al centro de la pantalla (despacio, para que se vea) y lo toca.
   const ver = async sel => {
     await page.locator(sel).first().evaluate(e => e.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-    await espera(700);
+    await espera(1000);
   };
-  const tocar = async (sel, ms) => { await ver(sel); await page.locator(sel).first().click(); await espera(ms || 600); };
-  const tipear = async (sel, txt) => { await ver(sel); await page.locator(sel).first().click(); await page.keyboard.type(txt, { delay: 70 }); await espera(250); };
+  const tocar = async (sel, ms) => { await ver(sel); await page.locator(sel).first().click(); await espera(ms || 1000); };
+  const tipear = async (sel, txt) => { await ver(sel); await page.locator(sel).first().click(); await page.keyboard.type(txt, { delay: 110 }); await espera(500); };
   const boton = t => 'button:has-text("' + t + '")';
 
   await page.goto(url);
@@ -113,16 +116,16 @@ function preparar() {
 
   // ── Apertura ──
   await placa('<img src="' + logo + '" alt=""><h1>Quality<span>OS</span></h1>' +
-    '<p>Control de calidad de lotes, del control en línea al dictamen.</p><p><b>Desde la tablet y aunque no haya señal.</b></p>', 3800);
+    '<p>Control de calidad de lotes, del control en línea al dictamen.</p><p><b>Desde la tablet y aunque no haya señal.</b></p>', 5000);
   await placa('', 900);
 
   // ── Acceso y demo ──
   await cartel('Se entra por invitación de tu empresa', 'Para conocerla, hay un modo demo sin cuenta');
-  await tocar('button[data-act="demo"]', 1200);
-  await cartel('La primera vez, una guía según tu rol', 'Tu nombre queda en la firma de cada dictamen', 2600);
-  await ver('.pasos li:nth-child(4)');
-  await espera(1200);
-  await tocar('button[type=submit]:has-text("Empezar")', 900);
+  await tocar('button[data-act="demo"]', 1500);
+  await cartel('La primera vez, una guía según tu rol', 'Tu nombre queda en la firma de cada dictamen', 3500);
+  // La bienvenida se recorre paso por paso, para que se pueda leer.
+  for (const n of [2, 3, 4, 5]) { await ver('.pasos li:nth-child(' + n + ')'); await espera(1200); }
+  await tocar('button[type=submit]:has-text("Empezar")', 1500);
 
   // ── Lote nuevo ──
   await cartel('Lotes en control e historial', 'Arrancamos uno nuevo');
@@ -131,7 +134,6 @@ function preparar() {
   await tipear('input[name=prod]', 'Aceite girasol 1,5 L');
   await tipear('input[name=lote]', 'L-2611-015');
   await tipear('input[name=cliente]', 'Almacén Central');
-  await page.selectOption('select[name=indId]', 'A').catch(() => {});
   await tipear('input[name=linea]', 'Env-04');
   await tipear('input[name="min-peso"]', '10');
   await tipear('input[name="max-peso"]', '11');
@@ -194,6 +196,10 @@ function preparar() {
   await ver('#plantillas');
   await cartel('Cada planta define qué controla', 'Plantillas por producto o línea, con ejemplos por rubro', 2800);
   await tocar('.fila-plantilla:has-text("Envasado de alimentos") >> text=Editar', 600);
+  await ver('[name="d-codigo"]');
+  await cartel('Cada plantilla es un registro con su codificación', 'Código, versión, vigencia e historial de cambios', 2400);
+  await page.locator('details.historial summary').click();
+  await espera(2200);
   await cartel('Mediciones con tolerancia, OK/NOK, datos y fechas', 'Alimentos, bebidas, químicos, cosmética…', 1600);
   await ver('.ed-item[data-sec="linea"][data-i="1"]');
   await espera(1400);

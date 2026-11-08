@@ -50,7 +50,25 @@ var Editor = (function () {
     return h + '</div>';
   }
 
-  function html(p, esNueva) {
+  // Codificación del registro (ISO 9001, 7.5): código, versión, vigencia, quién elaboró y
+  // aprobó, y el historial de versiones (solo lectura: lo completa la app al guardar).
+  function htmlDoc(doc, cambio) {
+    var hist = (doc.historial || []).slice().reverse();
+    return '<h3>Codificación del registro</h3>' +
+      '<p class="ayuda">Sale en el encabezado y el pie del PDF de cada lote. Cada lote conserva la versión con la que se hizo.</p>' +
+      '<div class="fila2"><label>Código *<input name="d-codigo" required value="' + esc(doc.codigo) + '" placeholder="REG-01"></label>' +
+      '<label>Versión *<input name="d-version" required value="' + esc(doc.version) + '"></label></div>' +
+      '<label>Vigente desde<input name="d-vigencia" type="date" value="' + esc(doc.vigencia) + '"></label>' +
+      '<div class="fila2"><label>Elaboró<input name="d-elaboro" value="' + esc(doc.elaboro) + '"></label>' +
+      '<label>Aprobó<input name="d-aprobo" value="' + esc(doc.aprobo) + '"></label></div>' +
+      '<label>Qué cambió en esta versión (queda en el historial)<input name="d-cambio" value="' + esc(cambio || '') + '" placeholder="Ej.: se agrega control de torque"></label>' +
+      (hist.length ? '<details class="historial"><summary>Historial de versiones (' + hist.length + ')</summary><ul>' + hist.map(function (h) {
+        return '<li><b>Versión ' + esc(h.version) + '</b> · ' + esc(h.fecha.split('-').reverse().join('/')) + (h.por ? ' · ' + esc(h.por) : '') +
+          (h.cambio ? '<br>' + esc(h.cambio) : '') + '</li>';
+      }).join('') + '</ul></details>' : '');
+  }
+
+  function html(p, esNueva, doc) {
     var seccion = function (sec, titulo, ayuda) {
       return '<h3>' + titulo + '</h3><p class="ayuda">' + ayuda + '</p>' +
         p[sec].map(function (it, i) { return htmlItem(sec, it, i, p[sec].length); }).join('') +
@@ -63,6 +81,7 @@ var Editor = (function () {
       '<label>Plural<input name="p-unidades" required value="' + esc(p.unidades) + '" placeholder="Pallets, Cajas, Muestras"></label></div>' +
       '<div class="fila2"><label>Cantidad por unidad, en<input name="p-cantidad" value="' + esc(p.cantidad || '') + '" placeholder="L, kg, unid. (vacío = no se usa)"></label>' +
       '<label>Unidades del control final (por defecto)<input name="p-cantFinal" type="number" min="0" max="200" value="' + esc(p.cantFinal || 12) + '"></label></div>' +
+      htmlDoc(doc, p.cambio) +
       seccion('linea', 'Control en línea', 'Lo que se revisa mientras la línea produce, unidad por unidad.') +
       seccion('final', 'Control final', 'Lo que se revisa antes del despacho. Los obligatorios tienen que estar completos para dictaminar.') +
       '<p class="ayuda">Los lotes ya creados no cambian: cada uno guarda la plantilla con la que se hizo.</p>' +
@@ -80,6 +99,10 @@ var Editor = (function () {
     p.unidades = val('p-unidades');
     p.cantidad = val('p-cantidad');
     p.cantFinal = Math.max(0, Math.min(200, parseInt(val('p-cantFinal'), 10) || 0));
+    p.doc = { codigo: val('d-codigo'), version: val('d-version'), vigencia: val('d-vigencia'),
+      elaboro: val('d-elaboro'), aprobo: val('d-aprobo'), historial: (anterior.doc && anterior.doc.historial) || [] };
+    // El motivo del cambio no es parte de la plantilla: app.js lo pasa al historial al guardar.
+    p.cambio = val('d-cambio');
     ['linea', 'final'].forEach(function (sec) {
       p[sec] = [].map.call(f.querySelectorAll('.ed-item[data-sec="' + sec + '"]'), function (div) {
         var v = function (n) { var e = div.querySelector('[name="' + n + '"]'); return e ? (e.type === 'checkbox' ? e.checked : e.value.trim()) : undefined; };

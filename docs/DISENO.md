@@ -53,6 +53,12 @@ marcarse como reprocesados si la plantilla lo permite.
 - Las reglas (`js/reglas.js`) y el servidor (`pallets_faltantes()`, migración 0004) leen los
   ítems de esa copia. Para dictaminar tienen que estar completos los ítems **obligatorios** del
   control final.
+- **Codificación del registro** (ISO 9001, 7.5): cada plantilla lleva `doc` = código, versión,
+  vigencia, elaboró, aprobó e historial de versiones. Si cambia el contenido (ítems, unidad o
+  cantidad) sin cambiar la versión, la app ofrece la siguiente (`Reglas.siguienteVersion`) y la
+  anota en el historial. El PDF usa la `doc` de la copia que guardó el lote, así que un lote viejo
+  conserva su versión. Las plantillas sin `doc` heredan la codificación única que antes tenía
+  la empresa (`config.docCodigo`…), que ya no se edita en ⚙ (`Reglas.docDe`).
 - **Formato anterior** (campos fijos de agroquímicos e "inductoras"): `Reglas.migrarLote` lo
   convierte a una plantilla equivalente. La conversión se hace en cada equipo sin subir nada;
   el lote se sube en el formato nuevo la próxima vez que alguien con permiso lo edita. El

@@ -50,6 +50,10 @@ solo sus datos.
      en cada lote), con semáforo si se quiere.
    - **OK / NOK**, con opción de marcarlo como **reprocesado** si se corrigió en el momento.
    - **Texto** (lote del envase, código…) o **fecha** (producción, vencimiento…).
+
+   Cada plantilla es un registro con su **codificación** (código, versión, vigencia, elaboró y
+   aprobó) y su **historial de versiones**: si cambia qué se controla, la app ofrece la versión
+   nueva, y cada lote conserva la versión con la que se hizo.
 1. **Nuevo lote.** Producto, n° de lote, cliente, línea, fecha, la plantilla y los rangos que
    esa plantilla pide para este lote.
 2. **Control en línea**, unidad por unidad (pallet, caja, muestra…): lo que pide la plantilla.
@@ -58,8 +62,8 @@ solo sus datos.
    novedad. La app suma unidades y cantidades (litros, kg…) aprobadas y retenidas.
 4. **Dictamen.** La app sugiere uno según el control final; la persona decide. Si faltan
    unidades por controlar, solo **Coordinación** puede dictaminar igual, y queda asentado.
-5. **Registro.** "Imprimir / PDF" arma el registro del lote en A4, con código y versión del
-   documento. Los desvíos del lote se pueden copiar para pegarlos en el
+5. **Registro.** "Imprimir / PDF" arma el registro del lote en A4, con el código, la versión y
+   la vigencia de su plantilla. Los desvíos del lote se pueden copiar para pegarlos en el
    [registro de No Conformidades](https://github.com/roca-byte/calidad-no-conformidades).
 
 Todo se ve en el **historial**, con búsqueda por lote, producto o cliente.

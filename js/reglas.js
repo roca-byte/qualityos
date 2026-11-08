@@ -294,12 +294,52 @@ var Reglas = (function () {
     delete e.rubro;
     e.id = 'p' + Date.now().toString(36);
     e.cantFinal = 12;
+    e.doc = { codigo: '', version: '00', vigencia: hoy(), elaboro: '', aprobo: '', historial: [] };
     return e;
+  }
+
+  // ───────────────────── Codificación del registro ─────────────────────
+  // Cada plantilla es un registro del sistema de gestión (ISO 9001, 7.5): tiene código,
+  // versión, vigencia, quién elaboró y quién aprobó, y un historial de versiones.
+  // Como cada lote guarda una copia de su plantilla, el PDF de un lote viejo conserva la
+  // codificación con la que se hizo aunque la plantilla ya vaya por otra versión.
+
+  // Codificación de una plantilla. Las de antes de esta función no tenían la suya: heredan
+  // la que estaba en la configuración de la empresa (un solo código para todo).
+  function docDe(p, config) {
+    var c = config || {};
+    var d = (p && p.doc) || {};
+    return {
+      codigo: d.codigo !== undefined ? d.codigo : (c.docCodigo || ''),
+      version: d.version !== undefined ? d.version : (c.docVersion || '00'),
+      vigencia: d.vigencia || '',
+      elaboro: d.elaboro !== undefined ? d.elaboro : (c.docElab || ''),
+      aprobo: d.aprobo !== undefined ? d.aprobo : (c.docAprob || ''),
+      historial: d.historial || []
+    };
+  }
+
+  // Versión siguiente: '03' → '04', '9' → '10', '1.2' → '1.3', 'B' → 'B.1'.
+  function siguienteVersion(v) {
+    var m = String(v || '').match(/^(.*?)(\d+)$/);
+    if (!m) return (v ? v + '.' : '') + '1';
+    var n = String(Number(m[2]) + 1);
+    while (n.length < m[2].length) n = '0' + n;
+    return m[1] + n;
+  }
+
+  // ¿Cambió QUÉ se controla? (no cuenta el nombre ni la codificación). Si cambió, la norma
+  // pide una versión nueva del registro.
+  function cambioContenido(a, b) {
+    var clave = function (p) { return JSON.stringify([p.unidad, p.unidades, p.cantidad, p.linea, p.final]); };
+    return clave(a) !== clave(b);
   }
 
   // Revisa una plantilla antes de guardarla. Devuelve el problema o '' si está bien.
   function validarPlantilla(p) {
     if (!String(p.nombre || '').trim()) return 'La plantilla necesita un nombre.';
+    if (p.doc && !String(p.doc.codigo || '').trim()) return 'Falta el código del registro (por ejemplo REG-01).';
+    if (p.doc && !String(p.doc.version || '').trim()) return 'Falta la versión del registro.';
     if (!String(p.unidad || '').trim()) return 'Falta el nombre de la unidad que se controla (pallet, caja, muestra…).';
     if (!p.linea.length && !p.final.length) return 'Agregá al menos un ítem a controlar.';
     var todos = p.linea.concat(p.final);
@@ -381,7 +421,8 @@ var Reglas = (function () {
     resumenFinal: resumenFinal, sugerirDictamen: sugerirDictamen, unidadesFaltantes: unidadesFaltantes,
     desvios: desvios, estadoPorDictamen: estadoPorDictamen, normalizarCliente: normalizarCliente,
     nuevaUnidad: nuevaUnidad, nuevoLote: nuevoLote, plantillaEjemplo: plantillaEjemplo,
-    validarPlantilla: validarPlantilla, plantillas: plantillas, migrarLote: migrarLote
+    validarPlantilla: validarPlantilla, plantillas: plantillas, migrarLote: migrarLote,
+    docDe: docDe, siguienteVersion: siguienteVersion, cambioContenido: cambioContenido
   };
 })();
 

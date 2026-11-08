@@ -110,6 +110,8 @@ test('desvíos para el registro de NC', () => {
 test('plantillas de ejemplo por rubro: todas válidas', () => {
   for (const clave of Object.keys(R.EJEMPLOS)) {
     const p = R.plantillaEjemplo(clave);
+    assert.match(R.validarPlantilla(p), /Falta el código/, clave + ': una plantilla nueva pide su código');
+    p.doc.codigo = 'REG-0X';
     assert.equal(R.validarPlantilla(p), '', clave);
     const ids = p.linea.concat(p.final).map(i => i.id);
     assert.equal(new Set(ids).size, ids.length, clave + ': ids únicos');
@@ -118,10 +120,34 @@ test('plantillas de ejemplo por rubro: todas válidas', () => {
 
 test('validar plantilla', () => {
   const p = R.plantillaEjemplo('blanco');
+  p.doc.codigo = 'REG-01';
   assert.equal(R.validarPlantilla(Object.assign({}, p, { nombre: ' ' })), 'La plantilla necesita un nombre.');
   assert.match(R.validarPlantilla(Object.assign({}, p, { linea: [], final: [] })), /al menos un ítem/);
   const malo = Object.assign({}, p, { linea: [{ id: 'x', nombre: 'Temp', tipo: 'medicion', tolerancia: 'fija', min: 5, max: 2 }] });
   assert.match(R.validarPlantilla(malo), /mínimo es mayor/);
+});
+
+test('codificación del registro por plantilla', () => {
+  const config = { docCodigo: 'REG-01', docVersion: '05', docElab: 'Ana', docAprob: 'Calidad' };
+  const vieja = R.plantillaEjemplo('agro'); delete vieja.doc;
+  assert.deepEqual(R.docDe(vieja, config), { codigo: 'REG-01', version: '05', vigencia: '', elaboro: 'Ana', aprobo: 'Calidad', historial: [] },
+    'sin codificación propia hereda la de la empresa');
+  const nueva = R.plantillaEjemplo('bebidas');
+  nueva.doc.codigo = 'REG-07';
+  assert.equal(R.docDe(nueva, config).codigo, 'REG-07', 'la propia manda');
+  assert.equal(R.docDe(nueva, config).elaboro, '', 'no mezcla datos de la empresa con los de la plantilla');
+  assert.deepEqual(['03', '9', '1.2', 'B', 'v09'].map(R.siguienteVersion), ['04', '10', '1.3', 'B.1', 'v10']);
+});
+
+test('cambio de contenido (pide versión nueva) vs. cambio de nombre o codificación', () => {
+  const a = R.plantillaEjemplo('alimentos');
+  const b = R.copia(a);
+  b.nombre = 'Otro nombre'; b.doc.codigo = 'REG-9';
+  assert.equal(R.cambioContenido(a, b), false);
+  b.linea[0].lecturas = 3;
+  assert.equal(R.cambioContenido(a, b), true);
+  const c = R.copia(a); c.cantidad = 'unid.';
+  assert.equal(R.cambioContenido(a, c), true);
 });
 
 test('lote del formato anterior se convierte sin perder datos', () => {

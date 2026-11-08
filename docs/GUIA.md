@@ -131,8 +131,7 @@ Tu bienvenida tiene otros pasos: configurar y armar el equipo.
 
 En **⚙**:
 
-- **Empresa**: nombre, código y versión del registro, quién elaboró y aprobó (salen en el PDF)
-  y líneas.
+- **Empresa**: nombre y líneas.
 - **Plantillas de control**: qué se controla en cada lote (ver abajo).
 - **Personas**: invitá por email con su rol, cambiá roles o desactivá a alguien que ya no
   trabaja. La persona invitada crea su cuenta con ese email (paso 1) y queda adentro.
@@ -162,6 +161,21 @@ En el editor:
 
 Los lotes ya creados **no cambian** si editás o borrás una plantilla: cada lote guarda una copia
 de la plantilla con la que se hizo.
+
+#### Codificación del registro
+
+Cada plantilla es un **registro del sistema de gestión** y lleva su codificación, como pide la
+norma (ISO 9001, 7.5): **código** (por ejemplo REG-01, obligatorio y sin repetir), **versión**,
+**vigente desde**, quién **elaboró** y quién **aprobó**. Sale en el encabezado y el pie del PDF.
+
+- Si cambiás **qué se controla** (agregás, sacás o modificás un ítem) y no subiste la versión, la
+  app te ofrece guardar como versión nueva (03 → 04) con la fecha de hoy. Si fue solo una
+  corrección menor, como un texto mal escrito, podés guardar sin cambiar la versión.
+- En **Qué cambió en esta versión** anotá el motivo: queda en el **Historial de versiones** con
+  la fecha y quién lo hizo.
+- Cada lote conserva la codificación con la que se hizo: el PDF de un lote viejo sale con su
+  versión aunque la plantilla ya vaya por otra.
+- **Duplicar** una plantilla crea otro registro: arranca sin código, en versión 00.
 
 | Rol | Puede |
 |---|---|

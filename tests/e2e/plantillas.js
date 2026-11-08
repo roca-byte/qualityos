@@ -21,7 +21,8 @@ const CAPTURAS = process.argv[2] || null;
   const page = await ctx.newPage();
   const errores = [];
   page.on('pageerror', e => errores.push(e.message));
-  page.on('dialog', d => d.accept());
+  const dialogos = [];
+  page.on('dialog', d => { dialogos.push(d.message()); d.accept(); });
   const paso = t => console.log('✓ ' + t);
   const foto = async n => { if (CAPTURAS) await page.screenshot({ path: path.join(CAPTURAS, n + '.png'), fullPage: true }); };
   const item = (sec, i) => `.ed-item[data-sec="${sec}"][data-i="${i}"]`;
@@ -40,6 +41,13 @@ const CAPTURAS = process.argv[2] || null;
   await page.waitForSelector('text=Nueva plantilla');
   assert.equal(await page.inputValue('[name="p-nombre"]'), 'Envasado de bebidas');
   await page.fill('[name="p-nombre"]', 'Jugos 1 L');
+  // Sin código el navegador no deja guardar (campo obligatorio) y queda en el editor.
+  await page.click('button:has-text("Guardar plantilla")');
+  assert.ok(await page.evaluate(() => document.querySelector('[name="d-codigo"]').validity.valueMissing));
+  assert.ok(await page.isVisible('text=Nueva plantilla'));
+  await page.fill('[name="d-codigo"]', 'REG-01');
+  await page.fill('[name="d-elaboro"]', 'Laura Gómez');
+  await page.fill('[name="d-aprobo"]', 'Pablo Díaz');
   // Sacar °Brix (3er ítem del control en línea)
   assert.equal(await page.inputValue(item('linea', 2) + ' [name=nombre]'), '°Brix');
   await page.click(item('linea', 2) + ' [data-act="item-quitar"]');
@@ -65,8 +73,13 @@ const CAPTURAS = process.argv[2] || null;
   await page.waitForSelector('text=el mínimo es mayor que el máximo');
   await page.fill(item('linea', 0) + ' [name=min]', '3');
   await page.fill(item('linea', 0) + ' [name=max]', '4');
+  await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('text=El código REG-01 ya lo usa la plantilla "Envasado de líquidos"');
+  await page.fill('[name="d-codigo"]', 'REG-05');
   await foto('editor');
   await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('.fila-plantilla:has-text("Jugos 1 L") >> text=REG-05 · versión 00');
+  paso('codificación: el código es obligatorio y no se puede repetir');
   await page.waitForSelector('#plantillas >> text=Jugos 1 L');
   paso('nueva plantilla desde un ejemplo: quitar, agregar, cambiar tipo, mover, validar y guardar');
 
@@ -90,7 +103,7 @@ const CAPTURAS = process.argv[2] || null;
   const tarjeta = await page.textContent('#cl-0');
   assert.match(tarjeta, /pH[\s\S]*Volumen[\s\S]*Torque de tapa[\s\S]*Codificado de fecha[\s\S]*Etiqueta/);
   assert.doesNotMatch(tarjeta, /Inducción|Peso por pico|Brix/, 'solo lo de su plantilla');
-  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L · Volumen \/ nivel de llenado 995–1010 ml/);
+  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L \(REG-05 v00\) · Volumen \/ nivel de llenado 995–1010 ml/);
   paso('el lote muestra solo los controles de su plantilla y los rangos cargados');
 
   // Control: pH fuera de tolerancia fija → NOK; se corrige
@@ -127,6 +140,9 @@ const CAPTURAS = process.argv[2] || null;
   assert.match(informe, /pH/);
   assert.doesNotMatch(informe, /Inducción|Peso por pico/);
   assert.match(informe, /Volumen \/ nivel de llenado \(ml\)/);
+  assert.match(informe, /Código: REG-05<br>Versión: 00/);
+  assert.match(informe, /Elaboró<\/th><td>Laura Gómez/);
+  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L \(REG-05 v00\)/);
   paso('el PDF arma sus columnas con la plantilla del lote');
 
   // Cambiar la plantilla después NO cambia el lote ya creado
@@ -134,11 +150,31 @@ const CAPTURAS = process.argv[2] || null;
   await page.click('[data-act=config]');
   await page.click('.fila-plantilla:has-text("Jugos 1 L") >> text=Editar');
   await page.click(item('linea', 0) + ' [data-act="item-quitar"]');
+  await page.fill('[name="d-cambio"]', 'Se quita el pH: lo mide el laboratorio');
+  dialogos.length = 0;
   await page.click('button:has-text("Guardar plantilla")');
   await page.waitForSelector('#plantillas');
-  const copia = await page.evaluate(() => Store.lotes().find(x => x.datos.cab.lote === 'J-0001').datos.plantilla.linea[0].nombre);
-  assert.equal(copia, 'pH', 'el lote conserva la plantilla con la que se creó');
-  paso('editar la plantilla no cambia los lotes ya creados');
+  assert.match(dialogos[0] || '', /la versión sigue siendo 00[\s\S]*versión 01/, 'ofrece subir la versión');
+  await page.waitForSelector('.fila-plantilla:has-text("Jugos 1 L") >> text=REG-05 · versión 01');
+  const doc = await page.evaluate(() => Store.perfil().config.plantillas.find(p => p.nombre === 'Jugos 1 L').doc);
+  assert.deepEqual(doc.historial.map(h => h.version + ' ' + h.cambio),
+    ['00 Creación del registro', '01 Se quita el pH: lo mide el laboratorio']);
+  paso('cambiar qué se controla ofrece versión nueva y la anota en el historial');
+  const copia = await page.evaluate(() => Store.lotes().find(x => x.datos.cab.lote === 'J-0001').datos.plantilla);
+  assert.equal(copia.linea[0].nombre, 'pH', 'el lote conserva la plantilla con la que se creó');
+  assert.equal(copia.doc.version, '00');
+  const pdfViejo = await page.evaluate(() => Imprimir.html(Store.lotes().find(x => x.datos.cab.lote === 'J-0001'), Store.perfil().config, 'X'));
+  assert.match(pdfViejo, /Versión: 00/, 'el PDF del lote viejo sigue con su versión');
+  paso('editar la plantilla no cambia los lotes ya creados ni su codificación');
+
+  // Cambiar solo el nombre no pide versión nueva
+  await page.click('.fila-plantilla:has-text("Jugos 1 L") >> text=Editar');
+  await page.fill('[name="p-nombre"]', 'Jugos 1 L (cítricos)');
+  dialogos.length = 0;
+  await page.click('button:has-text("Guardar plantilla")');
+  await page.waitForSelector('.fila-plantilla:has-text("Jugos 1 L (cítricos)") >> text=REG-05 · versión 01');
+  assert.equal(dialogos.length, 0, 'un cambio de nombre no pide versión');
+  paso('un cambio de nombre no pide versión nueva');
 
   assert.deepEqual(errores, []);
   console.log('\nPlantillas: OK');
