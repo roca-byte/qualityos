@@ -20,7 +20,7 @@ const ANCHO = 390, ALTO = 844;
 function preparar() {
   const css = document.createElement('style');
   css.textContent = `
-    #v-cartel { position: fixed; left: 12px; right: 12px; bottom: 18px; z-index: 99; padding: 12px 16px;
+    #v-cartel { position: fixed; left: 12px; right: 12px; bottom: 18px; z-index: 99; padding: 12px 16px; pointer-events: none;
       background: rgba(10, 70, 84, .94); color: #fff; border-radius: 14px; font: 600 17px/1.35 "Segoe UI", Roboto, sans-serif;
       box-shadow: 0 6px 24px rgba(0,0,0,.25); transition: opacity .35s, transform .35s; }
     #v-cartel.oculto { opacity: 0; transform: translateY(14px); }
