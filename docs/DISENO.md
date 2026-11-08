@@ -56,6 +56,15 @@ el inspector toca algo
 La sesión de Supabase y el perfil (empresa, rol, configuración) quedan guardados en la
 tablet: si se abre la app sin señal, se sigue trabajando con lo último que se bajó.
 
+## Modo demo
+
+"Probar sin cuenta" deja recorrer la app con datos de ejemplo sin registrarse. `js/nube.js`
+manda todos los pedidos a `js/demo.js`, un servidor de mentira que guarda en el navegador
+(`localStorage['qualityos.demo']`), así que la demo **nunca toca la base real**
+(`tests/e2e/demo.js` lo comprueba interceptando cualquier pedido a Supabase). Cada vez que se
+entra a la demo se recargan los datos de ejemplo. Las pruebas de la interfaz usan ese mismo
+servidor de mentira.
+
 ## Qué quedó afuera (por ahora)
 
 Estaba en la versión vieja y no entró en esta primera reconstrucción:

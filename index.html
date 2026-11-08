@@ -21,6 +21,12 @@
     </nav>
   </header>
 
+  <!-- Solo en el modo demo: deja claro que los datos son de ejemplo. -->
+  <div id="franja-demo" hidden>
+    <span><b>Modo demo</b> · datos de ejemplo, solo en este navegador</span>
+    <button class="btn chico" data-act="salir">Salir de la demo</button>
+  </div>
+
   <main id="vista"></main>
   <div id="aviso" role="status" aria-live="polite"></div>
   <!-- Acá se arma el informe del lote solo al imprimir (ver css @media print). -->
@@ -31,6 +37,7 @@
   <script src="./js/config.js"></script>
   <script src="./js/reglas.js"></script>
   <script src="./js/store.js"></script>
+  <script src="./js/demo.js"></script>
   <script src="./js/nube.js"></script>
   <script src="./js/imprimir.js"></script>
   <script src="./js/app.js"></script>

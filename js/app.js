@@ -153,7 +153,7 @@
 
   function usarMembresia(u, m) {
     entrarA({ userId: u.id, email: u.email, nombre: m.nombre, empresaId: m.empresa_id,
-      empresa: m.empresas.nombre, rol: m.rol, config: m.empresas.config });
+      empresa: m.empresas.nombre, rol: m.rol, config: m.empresas.config, demo: Nube.enDemo() });
   }
 
   // ───────────────────────── Pantallas ─────────────────────────
@@ -198,6 +198,8 @@
       '</form>' +
       '<div class="separador"><span>¿Es tu primera vez?</span></div>' +
       '<button class="btn" type="button" data-act="registrarse">Crear cuenta nueva</button>' +
+      '<div class="separador"><span>¿Querés verla antes?</span></div>' +
+      '<button class="btn" type="button" data-act="demo">Probar sin cuenta (demo)</button>' +
       '<p class="ayuda">Si te invitaron, creá tu cuenta con el mismo email de la invitación. ' +
       '¿Problemas para ingresar? Pedile ayuda a quien administra tu empresa.</p></div>' +
       '<p class="acceso-pie"><span class="punto' + (enLinea ? '' : ' sin-red') + '"></span>' +
@@ -250,13 +252,23 @@
 
   pantallas.bienvenida = function () {
     var p = perfil();
-    var pasos = p.rol === 'admin' ? PASOS_ADMIN : PASOS_INSPECTOR;
+    // En la demo se muestran los pasos del día a día (los de Inspector), aunque el visitante
+    // entre como Administración para poder ver también ⚙.
+    var pasos = p.rol === 'admin' && !p.demo ? PASOS_ADMIN : PASOS_INSPECTOR;
     var extra = p.rol === 'coordinacion'
       ? '<p class="ayuda">Como <b>Coordinación</b> además podés dictaminar con pallets pendientes, reabrir o corregir lotes dictaminados y borrar lotes.</p>'
       : '';
+    if (p.demo) {
+      extra = '<p class="ayuda">Ya hay un lote <b>en control</b> para seguir y otros dictaminados en <b>Historial</b>. ' +
+        'En <b>⚙</b> ves la configuración de la empresa y las personas.</p>';
+    }
+    var demo = p.demo
+      ? '<p class="info">Estás en el <b>modo demo</b>: la empresa y los lotes son de ejemplo y lo que cargues queda ' +
+        'solo en este navegador. Probá todo lo que quieras.</p>'
+      : '';
     return '<section class="tarjeta angosta bienvenida">' +
       '<h2>¡Bienvenido/a a QualityOS!</h2>' +
-      '<p class="meta">' + esc(p.empresa) + ' · ' + esc(ROLES[p.rol]) + '</p>' +
+      '<p class="meta">' + esc(p.empresa) + ' · ' + esc(ROLES[p.rol]) + '</p>' + demo +
       '<form data-form="bienvenida">' +
       '<label>Tu nombre (sale en la firma del dictamen)<input name="nombre" required autocomplete="name" value="' + esc(p.nombre || '') + '"></label>' +
       '<h3>Cómo empezar</h3><ol class="pasos">' + pasos.map(function (x) {
@@ -573,6 +585,7 @@
     document.getElementById('menu').hidden = !p || ['login', 'empresa', 'sinConfig'].indexOf(ui.pantalla) >= 0;
     // En la pantalla de acceso no va la barra: el logo grande cumple esa función.
     document.body.classList.toggle('en-acceso', ui.pantalla === 'login');
+    document.getElementById('franja-demo').hidden = !(p && p.demo) || ui.pantalla === 'login';
     vista.innerHTML = (pantallas[ui.pantalla] || pantallas.cargando)();
     estadoNube();
   }
@@ -767,8 +780,14 @@
       try { await elegirEmpresa(await Nube.usuario(), '', true); }
       catch (e) { aviso(e.message); }
     },
+    demo: async function (b) {
+      esperando(b, 'Preparando la demo…');
+      Store.reiniciarDemo(Demo.EMPRESA, 'visitante');
+      try { await elegirEmpresa(await Nube.entrarDemo(), ''); }
+      catch (e) { ir('login', { mensaje: e.message }); }
+    },
     salir: async function () {
-      if (perfil() && Store.pendientes().length &&
+      if (perfil() && !perfil().demo && Store.pendientes().length &&
           !confirm('Hay cambios sin subir en esta tablet. Si salís quedan guardados acá y se suben cuando vuelva a entrar alguien de la empresa. ¿Salir?')) return;
       await Nube.salir();
       Store.setPerfil(null);

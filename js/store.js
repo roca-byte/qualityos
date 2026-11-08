@@ -60,6 +60,14 @@ var Store = (function () {
 
   // ── Bienvenida: se muestra una vez por persona en cada equipo ──
   function guiaVista(userId) { return !!(estado.guias && estado.guias[userId]); }
+  // Antes de entrar a la demo se borra lo que quedó de la vez anterior en este equipo
+  // (lotes de ejemplo y "bienvenida vista"), para que siempre arranque igual.
+  function reiniciarDemo(empresaId, userId) {
+    delete estado.empresas[empresaId];
+    if (estado.guias) delete estado.guias[userId];
+    guardar();
+  }
+
   function marcarGuiaVista(userId) {
     estado.guias = estado.guias || {};
     estado.guias[userId] = true;
@@ -189,7 +197,7 @@ var Store = (function () {
   }
 
   return {
-    perfil: perfil, setPerfil: setPerfil, guiaVista: guiaVista, marcarGuiaVista: marcarGuiaVista,
+    perfil: perfil, setPerfil: setPerfil, guiaVista: guiaVista, marcarGuiaVista: marcarGuiaVista, reiniciarDemo: reiniciarDemo,
     lotes: lotes, lote: lote, crear: crear, cambiar: cambiar, borrar: borrar,
     pendientes: pendientes, confirmar: confirmar, conflicto: conflicto,
     conflictos: conflictos, resolverConflicto: resolverConflicto,

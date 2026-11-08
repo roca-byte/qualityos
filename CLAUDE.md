@@ -14,7 +14,7 @@ Contexto para sesiones futuras. Leer también `docs/DISENO.md`.
 Scripts clásicos sin módulos ni build, un objeto global por archivo, interfaz en español
 rioplatense (voseo), botones de 48 px, funciona sin señal.
 Licencia: PolyForm Noncommercial 1.0.0 (NO es MIT como sus otras apps: posible SaaS).
-Orden de carga: `vendor/supabase.js → config → reglas → store → nube → imprimir → app`.
+Orden de carga: `vendor/supabase.js → config → reglas → store → demo → nube → imprimir → app`.
 
 ## Reglas
 - El rol visible es **Inspector de Calidad** (nunca "Checker"). En la base y en los datos
@@ -22,6 +22,9 @@ Orden de carga: `vendor/supabase.js → config → reglas → store → nube →
 - Reglas de negocio solo en `js/reglas.js` (puras). Si una regla también la valida el
   servidor (`supabase/migrations/`), cambiar las dos y sus pruebas.
 - Todo acceso a Supabase solo en `js/nube.js`.
+- Modo demo (`js/demo.js`): imita a Supabase en el navegador. Si `nube.js` usa algo nuevo de
+  Supabase, agregarlo también a `demo.js`. La demo NUNCA puede llegar a la base real
+  (`tests/e2e/demo.js` lo verifica).
 - Escapar todo texto del usuario con `esc()` (Imprimir.esc) antes de ir a innerHTML.
 - Fechas locales con `Reglas.hoy()`, nunca `toISOString()` para fechas de calendario.
 - Cambios de esquema: archivo NUEVO en `supabase/migrations/` (no editar uno ya aplicado),
@@ -37,11 +40,13 @@ node --test 'tests/*.test.js'     # reglas
 tests/sql/correr.sh               # base (necesita Postgres local; como usuario postgres)
 node tests/e2e/flujo.js [carpeta] # interfaz con Supabase simulado; carpeta = capturas
 node tests/e2e/primer-uso.js      # cuenta nueva, invitación y bienvenida
+node tests/e2e/demo.js            # modo demo sin pedidos a Supabase
 ```
 
 ## Guía y demo
 - `docs/GUIA.md` es la guía para usuarios, con capturas de `docs/img/`.
-- Si cambia algo visible, regenerar capturas y GIF con `node tools/demo.js` (datos ficticios,
-  Supabase simulado) y revisar que la guía siga diciendo lo que la app hace.
+- Si cambia algo visible, regenerar capturas y GIF con `node tools/demo.js` y el video con
+  `node tools/video.js` (datos ficticios, Supabase simulado), y revisar que la guía siga
+  diciendo lo que la app hace.
 - La bienvenida de primera vez está en `pantallas.bienvenida` (js/app.js): si cambia el flujo,
   actualizar sus pasos y la guía juntos.

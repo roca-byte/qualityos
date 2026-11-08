@@ -282,3 +282,10 @@ body.en-acceso {
 a.btn { text-decoration: none; }
 .bienvenida > a.btn { width: 100%; }
 .vacio p { margin: 4px 0; }
+
+/* ── Modo demo: franja bajo la barra superior ── */
+#franja-demo { display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; padding: 6px 12px; background: var(--warn-bg); color: var(--text);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); font-size: 14px; }
+#franja-demo[hidden] { display: none; }
+#franja-demo .btn { min-height: 40px; }

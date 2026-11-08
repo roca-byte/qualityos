@@ -8,18 +8,32 @@ var Nube = (function () {
   'use strict';
 
   var cliente = null;
+  var clienteDemo = null;
+  // true desde que se toca "Probar sin cuenta" hasta salir; después lo indica el perfil.
+  var demoForzado = false;
   var sincronizando = false;
   // Al bajar cambios se pide un poco hacia atrás: una transacción que empezó
   // antes puede confirmarse después y quedaría afuera.
   var SOLAPAMIENTO_MS = 2 * 60 * 1000;
   var DIAS_PRIMERA_BAJADA = 60;
 
+  // Modo demo: todo va al servidor de mentira de js/demo.js y nunca a la base real.
+  function enDemo() {
+    var p = Store.perfil();
+    return demoForzado || !!(p && p.demo);
+  }
+
   function configurada() {
+    if (enDemo()) return true;
     var c = window.QOS_CONFIG || {};
     return !!(c.supabaseUrl && c.supabaseKey && window.supabase);
   }
 
   function sb() {
+    if (enDemo()) {
+      if (!clienteDemo) clienteDemo = Demo.cliente(Demo.CLAVE_DEMO);
+      return clienteDemo;
+    }
     if (!cliente) {
       var c = window.QOS_CONFIG;
       cliente = window.supabase.createClient(c.supabaseUrl, c.supabaseKey, {
@@ -70,6 +84,14 @@ var Nube = (function () {
 
   async function salir() {
     try { await sb().auth.signOut(); } catch (e) { /* sin red: igual se sale localmente */ }
+    demoForzado = false;
+  }
+
+  // Entra a la demo con datos de ejemplo recién cargados.
+  async function entrarDemo() {
+    Demo.reiniciar();
+    demoForzado = true;
+    return entrar(Demo.EMAIL, Demo.CLAVE);
   }
 
   // ── Empresas y miembros ──
@@ -171,7 +193,7 @@ var Nube = (function () {
   }
 
   return {
-    configurada: configurada, hayRed: hayRed,
+    configurada: configurada, hayRed: hayRed, enDemo: enDemo, entrarDemo: entrarDemo,
     usuario: usuario, entrar: entrar, registrarse: registrarse, salir: salir,
     misEmpresas: misEmpresas, puedoCrearEmpresas: puedoCrearEmpresas, crearEmpresa: crearEmpresa, guardarEmpresa: guardarEmpresa,
     cambiarMiNombre: cambiarMiNombre, miembros: miembros, invitar: invitar,

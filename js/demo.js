@@ -1,0 +1,237 @@
+/* Demo: un "servidor" de mentira que vive en el navegador.
+ *
+ * Imita lo justo de Supabase que usa js/nube.js (sesión, tablas, funciones), pero
+ * guarda todo en localStorage. Sirve para dos cosas:
+ *   1. El modo demo ("Probar sin cuenta"): cualquiera puede recorrer la app con datos
+ *      de ejemplo sin crear cuenta y SIN tocar la base real.
+ *   2. Las pruebas automáticas de la interfaz (tests/e2e/), que lo usan como servidor.
+ * Las reglas de seguridad de verdad están en la base (supabase/migrations/): acá no se
+ * controlan permisos.
+ */
+var Demo = (function () {
+  'use strict';
+
+  var CLAVE_DEMO = 'qualityos.demo';
+  var EMAIL = 'visitante@demo.qualityos';
+  var CLAVE = 'demo-qualityos';
+  var EMPRESA = 'demo';
+
+  function sinRed() { return navigator.onLine === false; }
+  function ok(data) { return Promise.resolve({ data: JSON.parse(JSON.stringify(data === undefined ? null : data)), error: null }); }
+  function err(msg) { return Promise.resolve({ data: null, error: { message: msg } }); }
+
+  // Crea un cliente con la misma forma que el de supabase-js.
+  // "clave" es dónde se guardan sus datos en localStorage. Cada operación lee y guarda
+  // de nuevo, así lo que cambie otra pestaña (o una prueba) se ve enseguida.
+  function cliente(clave) {
+    var claveSesion = clave + '.sesion';
+    function leer() { return JSON.parse(localStorage.getItem(clave) || 'null') || vacio(); }
+    function guardar(db) { localStorage.setItem(clave, JSON.stringify(db)); }
+    function sesion() { return JSON.parse(localStorage.getItem(claveSesion) || 'null'); }
+    function setSesion(s) {
+      if (s) localStorage.setItem(claveSesion, JSON.stringify(s)); else localStorage.removeItem(claveSesion);
+    }
+    function entrar(u) {
+      var s = { user: { id: u.id, email: u.email } };
+      setSesion(s);
+      return s;
+    }
+
+    function consulta(tabla) {
+      var filtros = [], orden = null, limite = null, op = 'select', valores = null;
+      var q = {
+        select: function () { return q; },
+        eq: function (k, v) { filtros.push(function (f) { return f[k] === v; }); return q; },
+        gt: function (k, v) { filtros.push(function (f) { return f[k] > v; }); return q; },
+        // Solo el caso que usa la app: "col.ilike.%texto%,col2.ilike.%texto%".
+        or: function (expr) {
+          var partes = String(expr).split(',').map(function (p) { return p.split('.ilike.'); });
+          filtros.push(function (f) {
+            return partes.some(function (p) {
+              var t = (p[1] || '').replace(/%/g, '').toLowerCase();
+              var v = f[p[0]] !== undefined ? f[p[0]] : (f.datos && f.datos.cab && f.datos.cab[{ numero: 'lote', producto: 'prod' }[p[0]] || p[0]]);
+              return String(v || '').toLowerCase().indexOf(t) >= 0;
+            });
+          });
+          return q;
+        },
+        order: function (k, o) { orden = { k: k, asc: !o || o.ascending !== false }; return q; },
+        limit: function (n) { limite = n; return q; },
+        update: function (v) { op = 'update'; valores = v; return q; },
+        upsert: function (v) { op = 'upsert'; valores = v; return q; },
+        delete: function () { op = 'delete'; return q; },
+        then: function (res, rej) { return ejecutar().then(res, rej); }
+      };
+      function ejecutar() {
+        if (sinRed()) return err('Failed to fetch');
+        var db = leer();
+        var filas = db[tabla].filter(function (f) { return filtros.every(function (fn) { return fn(f); }); });
+        if (op === 'update') { filas.forEach(function (f) { Object.assign(f, valores); }); guardar(db); return ok(null); }
+        if (op === 'delete') { db[tabla] = db[tabla].filter(function (f) { return filas.indexOf(f) < 0; }); guardar(db); return ok(null); }
+        if (op === 'upsert') { db[tabla].push(valores); guardar(db); return ok(null); }
+        if (tabla === 'miembros') filas = filas.map(function (m) {
+          var e = db.empresas.filter(function (x) { return x.id === m.empresa_id; })[0];
+          return Object.assign({}, m, { empresas: { nombre: e.nombre, config: e.config } });
+        });
+        if (orden) filas.sort(function (a, b) { return (a[orden.k] > b[orden.k] ? 1 : -1) * (orden.asc ? 1 : -1); });
+        if (limite) filas = filas.slice(0, limite);
+        return ok(filas);
+      }
+      return q;
+    }
+
+    // Las mismas funciones que la base real (supabase/migrations/), sin controles de permisos.
+    var rpcs = {
+      aceptar_invitaciones: function (db, s, a) {
+        var mias = db.invitaciones.filter(function (i) { return i.email === s.user.email; });
+        mias.forEach(function (i) {
+          db.miembros.push({ empresa_id: i.empresa_id, user_id: s.user.id, nombre: (a.p_mi_nombre || '').trim(), rol: i.rol, activo: true });
+        });
+        db.invitaciones = db.invitaciones.filter(function (i) { return i.email !== s.user.email; });
+        return mias.length;
+      },
+      puedo_crear_empresas: function (db, s) { return db.plataforma.indexOf(s.user.id) >= 0; },
+      crear_empresa: function (db, s, a) {
+        if (db.plataforma.indexOf(s.user.id) < 0) throw new Error('Solo el administrador de QualityOS puede crear empresas. Pedí que te inviten.');
+        var id = 'e-' + (db.empresas.length + 1);
+        db.empresas.push({ id: id, nombre: a.p_nombre, config: {} });
+        db.miembros.push({ empresa_id: id, user_id: s.user.id, nombre: a.p_mi_nombre, rol: 'admin', activo: true });
+        return id;
+      },
+      cambiar_mi_nombre: function (db, s, a) {
+        db.miembros.forEach(function (m) {
+          if (m.empresa_id === a.p_empresa && m.user_id === s.user.id) m.nombre = a.p_nombre.trim();
+        });
+        return null;
+      },
+      guardar_lote: function (db, s, a) {
+        var actual = db.lotes.filter(function (l) { return l.id === a.p_id; })[0];
+        var ahora = new Date(Date.now() + db.lotes.length).toISOString();
+        if (actual) {
+          if (actual.version !== a.p_version_base) return { ok: false, conflicto: true, lote: actual };
+          Object.assign(actual, { datos: a.p_datos, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
+          return { ok: true, lote: actual };
+        }
+        var nuevo = { id: a.p_id, empresa_id: a.p_empresa, datos: a.p_datos, version: 1, borrado: !!a.p_borrar, modificado: ahora };
+        db.lotes.push(nuevo);
+        return { ok: true, lote: nuevo };
+      }
+    };
+
+    return {
+      auth: {
+        getSession: function () { return ok({ session: sesion() }); },
+        signInWithPassword: function (c) {
+          if (sinRed()) return err('Failed to fetch');
+          var u = leer().usuarios[c.email];
+          if (!u || u.clave !== c.password) return err('Invalid login credentials');
+          if (!u.confirmado) return err('Email not confirmed');
+          var s = entrar(u);
+          return ok({ user: s.user, session: s });
+        },
+        signUp: function (c) {
+          if (sinRed()) return err('Failed to fetch');
+          var db = leer();
+          if (db.usuarios[c.email]) return err('User already registered');
+          if (String(c.password).length < 6) return err('Password should be at least 6 characters');
+          var u = { id: 'u-' + (Object.keys(db.usuarios).length + 1), email: c.email, clave: c.password, confirmado: !db.confirmarEmail };
+          db.usuarios[c.email] = u;
+          guardar(db);
+          if (!u.confirmado) return ok({ user: { id: u.id, email: u.email }, session: null });
+          var s = entrar(u);
+          return ok({ user: s.user, session: s });
+        },
+        signOut: function () { setSesion(null); return ok(null); }
+      },
+      from: consulta,
+      rpc: function (nombre, args) {
+        if (sinRed()) return err('Failed to fetch');
+        var db = leer(), r;
+        try { r = rpcs[nombre](db, sesion(), args || {}); } catch (e) { return err(e.message); }
+        guardar(db);
+        return ok(r);
+      }
+    };
+  }
+
+  function vacio() {
+    return { usuarios: {}, plataforma: [], confirmarEmail: false, empresas: [], miembros: [], invitaciones: [], lotes: [] };
+  }
+
+  // ── Datos de ejemplo (ficticios) ──
+
+  var CONFIG_EJEMPLO = {
+    inductoras: [
+      { id: 'A', nombre: 'Inductora Línea 1', tolMin: 1.0, tolMax: 1.4, unidad: '', semaforo: true },
+      { id: 'B', nombre: 'Inductora Línea 2', tolMin: 0.9, tolMax: 1.3, unidad: '', semaforo: true }
+    ],
+    lineas: ['Env-01', 'Env-02', 'Env-04'],
+    docCodigo: 'REG-01', docVersion: '03', docElab: 'Laura Gómez', docAprob: 'Coordinación de Calidad'
+  };
+
+  // Cuatro lotes en distintos estados, armados con las mismas reglas de la app.
+  function lotesEjemplo(empresaId) {
+    var hoy = new Date();
+    var dia = function (n) { return Reglas.hoy(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n)); };
+    var ok = { idOK: true, qrOK: true, paletOK: true, indCFOK: true };
+    var mas = function (a, b) { return Object.assign({}, a, b); };
+    var pl = function (n, extra) {
+      return Object.assign(Reglas.nuevoPalletLinea(n), {
+        hora: '0' + (6 + n) + ':1' + n, p1: '10.4', p2: '10.6', p3: '10.5', p4: '10.5',
+        lote: 'L-' + n, codProd: '7790123', fProd: dia(0), fVenc: dia(-365),
+        indOK: true, indVal: '1.2', qrLineaOK: true, packOK: true, pltOK: true
+      }, extra || {});
+    };
+    var lote = function (cab, estado, dictamen, finales, linea, por) {
+      var l = Reglas.nuevoLote(Object.assign({ indId: 'A', pesoMin: '10', pesoMax: '11', checker: 'Laura Gómez' }, cab), 0);
+      l.linea = linea;
+      l.final.pallets = finales.map(function (f) { return Object.assign(Reglas.nuevoPalletFinal(), f); });
+      l.final.ltsPorPallet = '1000';
+      if (dictamen) {
+        l.estado = estado; l.final.dictamen = dictamen;
+        l.final.fechaDictamen = Reglas.fechaLarga(cab.fecha) + ', 15:40';
+        l.final.dictaminadoPor = por;
+        l.final.dictaminadoRol = por === 'Pablo Díaz' ? 'Coordinación' : 'Inspector de Calidad';
+      }
+      return l;
+    };
+    var datos = [
+      lote({ prod: 'Aceite girasol 1,5 L', lote: 'L-2611-014', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(0) },
+        'activo', null, [ok, ok, ok, {}, {}, {}], [pl(1), pl(2, { p3: '11.3' }), pl(3, { packOK: false, packRepro: true })]),
+      lote({ prod: 'Aceite oliva 500 ml', lote: 'L-2611-012', cliente: 'Almacén Central', linea: 'Env-01', fecha: dia(1) },
+        'aprobado', 'APROBADO', [ok, ok, ok, ok], [pl(1), pl(2)], 'Laura Gómez'),
+      lote({ prod: 'Vinagre de alcohol 1 L', lote: 'L-2611-009', cliente: 'Supermercados del Sur', linea: 'Env-02', fecha: dia(2) },
+        'aprobado_parcial', 'APROBADO_PARCIAL', [ok, ok, mas(ok, { qrOK: false }), ok], [pl(1)], 'Laura Gómez'),
+      lote({ prod: 'Aceite girasol 900 ml', lote: 'L-2611-007', cliente: 'Distribuidora Norte SA', linea: 'Env-04', fecha: dia(3) },
+        'retenido', 'RETENIDO', [mas(ok, { indCFOK: false }), mas(ok, { indCFOK: false })], [pl(1, { indOK: false, indVal: '0.7' })], 'Pablo Díaz')
+    ];
+    return datos.map(function (d, i) {
+      return { id: '00000000-0000-4000-8000-00000000000' + i, empresa_id: empresaId, datos: d, version: 1,
+        borrado: false, modificado: new Date(Date.now() - i * 60000).toISOString() };
+    });
+  }
+
+  // Deja la demo como nueva: cada visitante arranca con los mismos datos.
+  function reiniciar() {
+    var db = vacio();
+    db.usuarios[EMAIL] = { id: 'visitante', email: EMAIL, clave: CLAVE, confirmado: true };
+    db.empresas.push({ id: EMPRESA, nombre: 'Planta Demo', config: CONFIG_EJEMPLO });
+    db.miembros.push(
+      { empresa_id: EMPRESA, user_id: 'visitante', nombre: 'Visitante', rol: 'admin', activo: true },
+      { empresa_id: EMPRESA, user_id: 'laura', nombre: 'Laura Gómez', rol: 'checker', activo: true },
+      { empresa_id: EMPRESA, user_id: 'pablo', nombre: 'Pablo Díaz', rol: 'coordinacion', activo: true }
+    );
+    db.invitaciones.push({ empresa_id: EMPRESA, email: 'turno.noche@plantademo.com', rol: 'checker' });
+    db.lotes = lotesEjemplo(EMPRESA);
+    localStorage.setItem(CLAVE_DEMO, JSON.stringify(db));
+    localStorage.removeItem(CLAVE_DEMO + '.sesion');
+  }
+
+  return {
+    CLAVE_DEMO: CLAVE_DEMO, EMAIL: EMAIL, CLAVE: CLAVE, EMPRESA: EMPRESA,
+    cliente: cliente, reiniciar: reiniciar, lotesEjemplo: lotesEjemplo, CONFIG_EJEMPLO: CONFIG_EJEMPLO
+  };
+})();
+
+// Para los scripts de Node (tools/). En el navegador no existe "module" y se ignora.
+if (typeof module !== 'undefined') module.exports = Demo;
