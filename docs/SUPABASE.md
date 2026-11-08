@@ -97,7 +97,7 @@ Si aparece cualquier otra función o tabla, revisarla.
 
 | Rol | Puede |
 |---|---|
-| Checker | Crear y controlar lotes, dictaminar si el control final está completo |
+| Inspector de Calidad | Crear y controlar lotes, dictaminar si el control final está completo |
 | Coordinación | Lo anterior, más dictaminar con pallets incompletos, modificar o reabrir lotes dictaminados, borrar lotes y ver la auditoría |
 | Administración | Todo lo anterior, más configurar la empresa e invitar personas |
 

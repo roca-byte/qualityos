@@ -43,7 +43,7 @@ hace falta analizar pallet por pallet, se puede armar una vista SQL sobre el JSO
 ## Trabajo sin señal
 
 ```
-el checker toca algo
+el inspector toca algo
   → Store.cambiar(): cambia la copia local y marca el lote "pendiente"
   → a los 3 s (o al volver la señal, o cada minuto) Nube.sincronizar():
       1. sube cada pendiente con guardar_lote(id, versión_base, datos)

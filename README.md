@@ -59,7 +59,7 @@ Todo se ve en el **historial**, con búsqueda por lote, producto o cliente.
 
 | Rol | Qué puede hacer |
 |---|---|
-| **Checker** | Crear y controlar lotes. Dictaminar cuando el control final está completo |
+| **Inspector de Calidad** | Crear y controlar lotes. Dictaminar cuando el control final está completo |
 | **Coordinación** | Lo anterior, más dictaminar con pallets pendientes, corregir o reabrir lotes dictaminados, borrar lotes y ver la auditoría |
 | **Administración** | Todo lo anterior, más configurar la empresa (inductoras, líneas, datos del registro) e invitar personas |
 

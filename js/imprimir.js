@@ -40,7 +40,7 @@ var Imprimir = (function () {
       '<th>Línea</th><td>' + esc(cab.linea || '—') + '</td><th>Fecha</th><td>' + esc(Reglas.fechaLarga(cab.fecha)) + '</td>' +
       '<th>Inductora</th><td>' + esc(ind.nombre) + (ind.tolMin !== undefined ? ' (' + esc(ind.tolMin) + '–' + esc(ind.tolMax) + ')' : '') + '</td></tr><tr>' +
       '<th>Peso por pico</th><td>' + (cab.pesoMin ? esc(cab.pesoMin) + '–' + esc(cab.pesoMax) + ' kg' : '—') + '</td>' +
-      '<th>Checker</th><td>' + esc(cab.checker || '—') + '</td><th>Estado</th><td><b>' + esc(String(l.estado).replace('_', ' ').toUpperCase()) + '</b></td>' +
+      '<th>Inspector de Calidad</th><td>' + esc(cab.checker || '—') + '</td><th>Estado</th><td><b>' + esc(String(l.estado).replace('_', ' ').toUpperCase()) + '</b></td>' +
       '</tr></table>';
 
     var filasLinea = (l.linea || []).map(function (p, i) {

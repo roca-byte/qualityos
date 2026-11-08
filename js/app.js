@@ -11,7 +11,7 @@
   var ui = { pantalla: 'cargando', loteId: null, tab: 'activos', busqueda: '', resultados: null, mensaje: '' };
   var temporizadorSync = null;
 
-  var ROLES = { checker: 'Checker', coordinacion: 'Coordinación', admin: 'Administración' };
+  var ROLES = { checker: 'Inspector de Calidad', coordinacion: 'Coordinación', admin: 'Administración' };
   var DICTAMENES = [
     { v: 'APROBADO', txt: 'Aprobado', cls: 'ok' },
     { v: 'APROBADO_PARCIAL', txt: 'Aprobado parcial', cls: 'warn' },
@@ -31,7 +31,7 @@
   function esAdmin() { return perfil() && perfil().rol === 'admin'; }
   function inductora(id) { return config().inductoras.filter(function (i) { return i.id === id; })[0] || null; }
 
-  // Un lote dictaminado queda bloqueado para el checker (el servidor también lo exige).
+  // Un lote dictaminado queda bloqueado para el inspector (el servidor también lo exige).
   function editable(lote) { return lote.datos.estado === 'activo' || esSuperior(); }
 
   function aviso(txt) {
@@ -289,7 +289,7 @@
       }), c.indId) + '</select></label>' +
       '<div class="fila2"><label>Peso mín. por pico (kg)<input name="pesoMin" inputmode="decimal" value="' + esc(c.pesoMin || '') + '"></label>' +
       '<label>Peso máx. por pico (kg)<input name="pesoMax" inputmode="decimal" value="' + esc(c.pesoMax || '') + '"></label></div>' +
-      '<label>Checker<input name="checker" value="' + esc(c.checker || '') + '"></label>' +
+      '<label>Inspector de Calidad<input name="checker" value="' + esc(c.checker || '') + '"></label>' +
       (l ? '' : '<label>Pallets del control final<input name="pallets" type="number" min="0" max="200" value="12"></label>') +
       '<div class="acciones"><button class="btn" type="button" data-act="' + (l ? 'abrir' : 'inicio') + '" data-id="' + esc(ui.loteId || '') + '">Cancelar</button>' +
       '<button class="btn primario" type="submit">' + (l ? 'Guardar' : 'Crear lote') + '</button></div>' +

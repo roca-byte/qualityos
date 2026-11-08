@@ -138,7 +138,7 @@ var Reglas = (function () {
     return r;
   }
 
-  // Dictamen que la app sugiere (el checker decide igual).
+  // Dictamen que la app sugiere (el inspector decide igual).
   function sugerirDictamen(lote) {
     var r = resumenFinal(lote);
     var total = r.aprobados + r.retenidos + r.pendientes;

@@ -124,7 +124,7 @@ do $$
 declare e uuid := (select id from public.empresas); r jsonb;
 begin
   r := public.guardar_lote('11111111-1111-1111-1111-111111111111', e, 2, prueba.lote(true, 'aprobado_parcial', 'APROBADO_PARCIAL'));
-  assert (r->>'ok')::boolean, 'Checker dictamina con CF completo';
+  assert (r->>'ok')::boolean, 'El inspector (rol checker) dictamina con CF completo';
   assert (select estado || '|' || dictamen from public.lotes) = 'aprobado_parcial|APROBADO_PARCIAL',
     'El parcial se conserva (en la versión vieja quedaba "cerrado")';
   perform public.cambiar_mi_nombre(e, 'Beto Gómez');

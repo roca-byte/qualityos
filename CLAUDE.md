@@ -3,7 +3,7 @@
 Contexto para sesiones futuras. Leer también `docs/DISENO.md`.
 
 ## Quién y qué
-- Usuario: Maximiliano, checker de calidad. Estudia Desarrollo de Software:
+- Usuario: Maximiliano, Inspector de Calidad. Estudia Desarrollo de Software:
   **quiere entender el código**, no solo que funcione.
 - App: PWA para crear un lote, controlarlo (peso por pico, identificación, inducción,
   QR/packaging/paletizado, control final) y dictaminarlo. Multiempresa sobre Supabase.
@@ -17,6 +17,8 @@ Licencia: PolyForm Noncommercial 1.0.0 (NO es MIT como sus otras apps: posible S
 Orden de carga: `vendor/supabase.js → config → reglas → store → nube → imprimir → app`.
 
 ## Reglas
+- El rol visible es **Inspector de Calidad** (nunca "Checker"). En la base y en los datos
+  sigue llamándose `checker`: no renombrarlo sin migración.
 - Reglas de negocio solo en `js/reglas.js` (puras). Si una regla también la valida el
   servidor (`supabase/migrations/`), cambiar las dos y sus pruebas.
 - Todo acceso a Supabase solo en `js/nube.js`.
