@@ -102,6 +102,20 @@ manda todos los pedidos a `js/demo.js`, un servidor de mentira que guarda en el 
 entra a la demo se recargan los datos de ejemplo. Las pruebas de la interfaz usan ese mismo
 servidor de mentira.
 
+## Control en línea por horario
+
+Etapa 2, parte 3. `plantilla.frecuencia = { modo: 'unidad' | 'horario', cadaMin }` (sin el campo =
+por unidad, como las plantillas de antes). Es uno u otro, y el intervalo se cuenta **desde el
+último control** (decisión del usuario). El dato no cambia: cada control del lote es una unidad de
+`linea[]` con su `hora`.
+
+- `Reglas.proximoControl(lote)` toma la hora del último control con hora y le suma el intervalo.
+  La hora no guarda fecha: se parte de la fecha del lote y, si una hora es menor que la anterior,
+  se entiende que pasó la medianoche. `controlAtrasado` compara con la hora actual.
+- El aviso se actualiza solo cada 30 s: en la lista se redibuja; en el lote solo el aviso
+  (`#prox-control`), para no sacar el foco del campo que se está editando.
+- Sin notificaciones con la app cerrada (no se pidió; sería otra etapa).
+
 ## Catálogo de productos
 
 Etapa 2, parte 2. Optativo: `empresas.config.productos` (lo edita solo Administración, como las

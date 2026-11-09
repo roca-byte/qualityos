@@ -25,28 +25,27 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
   La app individual `calidad-no-conformidades` sigue aparte, con código propio.
   Publicada el 09/11/2026: migración 0005 aplicada en Supabase y app en GitHub Pages (sw v14).
 
+- **Etapa 2 · Productos y control por horario** (09/11/2026) — terminada, en tres partes publicadas
+  por separado (PR 4, 5 y 6). No necesita migración: todo va en `empresas.config` y en los
+  datos del lote.
+  - **Parte 1 · Datos del lote por plantilla** — hecha (09/11/2026). `p.cabecera` (texto,
+    lista, número o fecha; obligatorio o no) → `cab.extra`. Ver "Plantillas de control" en
+    `docs/DISENO.md`.
+  - **Parte 2 · Catálogo de productos** — hecha (09/11/2026). Ver "Catálogo de productos" en
+    `docs/DISENO.md`. (⚙, **solo Administración**): nombre, código, plantilla,
+    rangos por defecto, cantidad por unidad, unidades del control final y valores por defecto
+    de los datos del lote. Al crear el lote, elegir el producto completa todo (editable). Es
+    optativo: un producto que no está se escribe a mano. "Guardar como producto" al crear un
+    lote nuevo. Cada lote guarda copia (corregir el catálogo no cambia lotes viejos).
+  - **Parte 3 · Control en línea por horario** — hecha (09/11/2026). Ver "Control en línea por
+    horario" en `docs/DISENO.md`. La plantilla elige **por unidad** (como hoy) **o**
+    **por horario** (uno u otro, no los dos), "cada X horas **desde el último control**".
+    "Próximo control: 12:10" y "⏰ Control atrasado" en el lote y su tarjeta. Sin notificaciones
+    con la app cerrada (eso queda para después, si se pide).
+
 ## Próximo
 
-1. **Etapa 2 · Productos y control por horario** (diseño acordado el 09/11/2026), en tres partes
-   que se publican por separado. No necesita migración: todo va en `empresas.config` y en los
-   datos del lote.
-   - **Parte 1 · Datos del lote por plantilla** — hecha (09/11/2026). `p.cabecera` (texto,
-     lista, número o fecha; obligatorio o no) → `cab.extra`. Ver "Plantillas de control" en
-     `docs/DISENO.md`.
-   - **Parte 2 · Catálogo de productos** — hecha (09/11/2026). Ver "Catálogo de productos" en
-     `docs/DISENO.md`. (⚙, **solo Administración**): nombre, código, plantilla,
-     rangos por defecto, cantidad por unidad, unidades del control final y valores por defecto
-     de los datos del lote. Al crear el lote, elegir el producto completa todo (editable). Es
-     optativo: un producto que no está se escribe a mano. "Guardar como producto" al crear un
-     lote nuevo. Cada lote guarda copia (corregir el catálogo no cambia lotes viejos).
-   - **Parte 3 · Control en línea por horario**: la plantilla elige **por unidad** (como hoy) **o**
-     **por horario** (uno u otro, no los dos), "cada X horas **desde el último control**".
-     "Próximo control: 12:10" y "⏰ Control atrasado" en el lote y su tarjeta. Sin notificaciones
-     con la app cerrada (eso queda para después, si se pide).
-
-## Más adelante
-
-2. **Firma.** Averiguar qué exige la norma para firmar registros (ISO 9001: identificar quién
+1. **Firma.** Averiguar qué exige la norma para firmar registros (ISO 9001: identificar quién
    aprueba y cuándo; en farma/alimentos con requisitos más fuertes, firma electrónica con
    validación, tipo 21 CFR Part 11 / ANMAT) y qué se puede hacer: hoy queda registrado quién
    dictaminó, con qué rol y cuándo, más la auditoría de cada versión del lote. Evaluar:
@@ -55,7 +54,7 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
 
 ## Mucho más adelante (opcional, más grande)
 
-3. **Otros sectores.** Que otras áreas usen los mismos lotes:
+2. **Otros sectores.** Que otras áreas usen los mismos lotes:
    - Que **Producción** (y no solo Calidad) pueda crear el lote, y después Calidad lo controle.
    - Que **Logística** tome los lotes dictaminados (por ejemplo, para el despacho).
    Implica nuevos roles y permisos por sector, y estados del lote más allá del dictamen.
