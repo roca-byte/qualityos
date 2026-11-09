@@ -97,12 +97,36 @@ manda todos los pedidos a `js/demo.js`, un servidor de mentira que guarda en el 
 entra a la demo se recargan los datos de ejemplo. Las pruebas de la interfaz usan ese mismo
 servidor de mentira.
 
+## No conformidades
+
+Estaban en la versión vieja y volvieron el 09/11/2026 (migración 0005). Se cargan **todos los
+días** y se entregan **por mes**. Hay además una app individual sin cuenta
+(`calidad-no-conformidades`, MIT) con **código distinto**: lo único que comparten es que QualityOS
+importa su respaldo (`Reglas.desdeRegistroIndividual`).
+
+- **Mismo esquema que los lotes**: tabla `no_conformidades` (+ `no_conformidades_historial`), id
+  generado por la tablet, `guardar_nc()` con versión base y conflictos, lápida al borrar.
+  En la tablet viven en `Store` junto a los lotes (`empresas[id].ncs`) y suben por la misma
+  bandeja de salida (primero los lotes).
+- **Número** `NC-AAAA-NNN` por empresa y año de la fecha de detección: lo asigna el servidor la
+  primera vez que recibe la NC (bloqueando la fila de la empresa para no repetir), porque dos
+  tablets sin señal no pueden saber cuál sigue. Hasta subir, la NC dice "NC nueva".
+- **Permisos**: cualquiera de Calidad (todos los roles) crea, edita, cierra, anula y verifica la
+  eficacia (pedido del usuario: "cualquiera de Calidad cierra"). Borrar del todo es de
+  coordinación o admin; lo normal es **anular**, que deja la NC en el registro sin contar en los
+  indicadores.
+- **Desde un lote** (`Reglas.ncsDesdeLote`): una NC por lote · etapa · control · (abierto o
+  reprocesado), con las unidades listadas. Lo reprocesado entra cerrado. Cada NC guarda su
+  `origen` para no crearla dos veces.
+- **Configuración** (`empresas.config`): `tiposNc` (tipo + gravedad sugerida), `ncPlazoDias`
+  (días hábiles), `ncCodigo` y `ncVersion` (encabezado del registro impreso).
+- Reglas en `js/reglas.js` (validarNc es la misma validación que hace `guardar_nc`), pruebas en
+  `tests/nc.test.js`, `tests/sql/pruebas.sql` y `tests/e2e/nc.js`.
+
 ## Qué quedó afuera (por ahora)
 
 Estaba en la versión vieja y no entró en esta primera reconstrucción:
 
-- **Registro de No Conformidades** con KPIs: existe como app aparte
-  (`calidad-no-conformidades`). Desde el lote se pueden copiar los desvíos para pegarlos ahí.
 - **Escaneo de QR con la cámara** (validaba la URL del código).
 - **Exportar a Excel.**
 - **Panel de coordinación** separado: acá coordinación usa la misma pantalla con más permisos.

@@ -62,8 +62,11 @@ solo sus datos.
 4. **Dictamen.** La app sugiere uno según el control final; la persona decide. Si faltan
    unidades por controlar, solo **Coordinación** puede dictaminar igual, y queda asentado.
 5. **Registro.** "Imprimir / PDF" arma el registro del lote en A4, con el código, la versión y
-   la vigencia de su plantilla. Los desvíos del lote se pueden copiar para pegarlos en el
-   [registro de No Conformidades](https://github.com/roca-byte/calidad-no-conformidades).
+   la vigencia de su plantilla.
+6. **No conformidades.** Desde el dictamen, una NC por cada control con desvío (o a mano, para
+   un reclamo o un control de ingreso). Se cargan todos los días y se siguen hasta cerrarlas y
+   verificar la eficacia; la pestaña **NC** muestra el mes o las abiertas, con indicadores, y
+   arma el registro mensual para imprimir. Cualquiera de Calidad puede cerrarlas.
 
 Todo se ve en el **historial**, con búsqueda por lote, producto o cliente.
 
@@ -73,7 +76,7 @@ La primera vez, la app muestra una **bienvenida** con los pasos según el rol. L
 <p>
 <img src="docs/img/05-control-en-linea.png" alt="Control en línea" width="220">
 <img src="docs/img/08-dictamen.png" alt="Dictamen sugerido" width="220">
-<img src="docs/img/11-historial.png" alt="Historial" width="220">
+<img src="docs/img/19-nc-lista.png" alt="No conformidades del mes" width="220">
 </p>
 <p>
 <img src="docs/img/15-plantillas.png" alt="Plantillas de control" width="220">

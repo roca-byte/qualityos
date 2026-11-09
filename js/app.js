@@ -8,7 +8,8 @@
 
   var esc = Imprimir.esc;
   var vista = document.getElementById('vista');
-  var ui = { pantalla: 'cargando', loteId: null, tab: 'activos', busqueda: '', resultados: null, mensaje: '' };
+  // ncFiltro: qué NC se ven ('aaaa-mm' o 'abiertas'); null = el mes actual.
+  var ui = { pantalla: 'cargando', loteId: null, tab: 'activos', busqueda: '', resultados: null, mensaje: '', ncId: null, ncFiltro: null };
   var temporizadorSync = null;
 
   var ROLES = { checker: 'Inspector de Calidad', coordinacion: 'Coordinación', admin: 'Administración' };
@@ -28,6 +29,16 @@
   function esAdmin() { return perfil() && perfil().rol === 'admin'; }
   // Plantillas de control de la empresa (con configuración vieja, la equivalente).
   function plantillasEmpresa() { return Reglas.plantillas(config()); }
+  // No conformidades: tipos de desvío y plazo que configuró la empresa.
+  function tiposNc() { return Reglas.tiposNc(config()); }
+  function plazoNc() { return Reglas.plazoNcDias(config()); }
+  function mesActual() { return Reglas.hoy().slice(0, 7); }
+  function quienSoy() { var p = perfil(); return (p.nombre || p.email) + ' (' + ROLES[p.rol] + ')'; }
+  // Del más viejo al más nuevo (así se imprime); la lista en pantalla las da vuelta.
+  function ordenarNc(lista) {
+    return lista.sort(function (a, b) { return a.datos.fecha === b.datos.fecha ? String(a.numero).localeCompare(String(b.numero)) : a.datos.fecha < b.datos.fecha ? -1 : 1; });
+  }
+
   // "pallet" / "pallets" según la plantilla del lote, para los textos.
   function nombreUnidad(p, n) { return String(n === 1 ? p.unidad : p.unidades).toLowerCase(); }
 
@@ -69,9 +80,11 @@
     if (!perfil() || !Nube.configurada()) return;
     try {
       var r = await Nube.sincronizar();
-      if (r && r.conflictos) aviso('⚠ ' + r.conflictos + ' lote(s) los cambió otro equipo. Revisá "Conflictos".');
+      if (r && r.conflictos) aviso('⚠ ' + r.conflictos + ' lote(s) o NC los cambió otro equipo. Revisá "Conflictos".');
       if (r && r.bajados) migrarLotesViejos();
-      if (r && (r.bajados || r.conflictos) && ui.pantalla === 'inicio') dibujar();
+      // r.subidos: una NC recién subida ya tiene número para mostrar.
+      if (r && (r.bajados || r.conflictos || r.subidos) && ui.pantalla === 'inicio') dibujar();
+      if (r && r.conflictos && ui.pantalla === 'nc' && ui.ncId && !Store.nc(ui.ncId)) ir('inicio', { tab: 'nc' });
       if (r && r.conflictos && ui.pantalla === 'lote' && !Store.lote(ui.loteId)) ir('inicio');
       else if (r && r.conflictos && ui.pantalla === 'lote') dibujar();
     } catch (e) {
@@ -253,6 +266,7 @@
     ['Controlá en línea', 'Unidad por unidad (pallet, caja, muestra…), cargá lo que pide la plantilla: mediciones, OK/NOK y datos. Lo que sale de tolerancia se marca solo. Si corregiste un NOK en el momento, marcalo como <b>Reprocesado</b>.'],
     ['Hacé el control final', 'Revisá cada unidad antes del despacho. Si está todo bien, <b>✓ Todo OK</b> lo completa de un toque.'],
     ['Dictaminá', 'La app sugiere Aprobado, Aprobado parcial o Retenido según el control final. Vos decidís.'],
+    ['Registrá las no conformidades', 'Desde el dictamen, <b>Crear NC</b> arma una NC por cada control con desvío. En la pestaña <b>NC</b> ves las abiertas, completás la acción y la cerrás cuando corresponda; el registro se imprime por mes.'],
     ['Guardá el registro', '<b>Imprimir / PDF</b> arma el registro del lote listo para archivar.']
   ];
   var PASOS_ADMIN = [
@@ -299,11 +313,15 @@
     });
     var activos = todos.filter(function (l) { return l.datos.estado === 'activo'; });
     var cerrados = todos.filter(function (l) { return l.datos.estado !== 'activo'; });
+    var ncAbiertas = Store.ncs().filter(function (n) { return Reglas.ncAbierta(n.datos); }).length;
     var tabs = '<div class="tabs">' +
       '<button class="tab' + (ui.tab === 'activos' ? ' activa' : '') + '" data-act="tab" data-tab="activos">En control (' + activos.length + ')</button>' +
-      '<button class="tab' + (ui.tab === 'historial' ? ' activa' : '') + '" data-act="tab" data-tab="historial">Historial</button></div>';
+      '<button class="tab' + (ui.tab === 'historial' ? ' activa' : '') + '" data-act="tab" data-tab="historial">Historial</button>' +
+      '<button class="tab' + (ui.tab === 'nc' ? ' activa' : '') + '" data-act="tab" data-tab="nc">NC · ' + ncAbiertas + ' abierta' + (ncAbiertas === 1 ? '' : 's') + '</button></div>';
     var cuerpo;
-    if (ui.tab === 'activos') {
+    if (ui.tab === 'nc') {
+      cuerpo = seccionNcs();
+    } else if (ui.tab === 'activos') {
       cuerpo = '<button class="btn primario grande" data-act="nuevo">+ Nuevo lote</button>' +
         (activos.length ? activos.map(tarjetaLote).join('') : listaVacia());
     } else {
@@ -343,6 +361,153 @@
       '<span class="li-meta">' + esc(Reglas.fechaLarga(c.fecha)) + (c.linea ? ' · ' + esc(c.linea) : '') +
       ' · CF ' + (r.aprobados + r.retenidos) + '/' + (r.aprobados + r.retenidos + r.pendientes) + '</span>' +
       '<span class="li-estado">' + esc(ESTADOS[d.estado] || d.estado) + (l.pendiente ? ' · ⏳' : '') + '</span></button>';
+  }
+
+  // ───────────── No conformidades ─────────────
+
+  // Pestaña NC: se elige el mes (o las abiertas de todos los meses), con sus indicadores.
+  function seccionNcs() {
+    var filtro = ui.ncFiltro || mesActual();
+    var todas = Store.ncs();
+    var lista = ordenarNc(todas.filter(function (n) {
+      return filtro === 'abiertas' ? Reglas.ncAbierta(n.datos) : Reglas.mesDeNc(n.datos) === filtro;
+    }));
+    var nAb = todas.filter(function (n) { return Reglas.ncAbierta(n.datos); }).length;
+    var opc = [{ v: 'abiertas', t: 'Abiertas, todos los meses (' + nAb + ')' }].concat(
+      Reglas.mesesNc(todas.map(function (n) { return n.datos; }), mesActual()).map(function (m) { return { v: m, t: Reglas.nombreMes(m) }; }));
+    var k = Reglas.kpisNc(lista.map(function (n) { return n.datos; }));
+    var kpi = function (valor, txt, cls) { return '<div class="' + (cls || '') + '"><b>' + esc(valor) + '</b><span>' + txt + '</span></div>'; };
+    var kpis = '<div class="nc-kpis">' +
+      kpi(k.total, filtro === 'abiertas' ? 'abiertas' : 'NC del mes') +
+      (filtro === 'abiertas' ? '' : kpi(k.abiertas, 'abiertas', k.abiertas ? 'warn' : '')) +
+      kpi(k.vencidas, 'plazo vencido', k.vencidas ? 'nok' : '') +
+      kpi(k.enPlazo === null ? '—' : k.enPlazo + ' %', 'cerradas en plazo') +
+      kpi(k.sev['Crítico'], 'críticas', k.sev['Crítico'] ? 'nok' : '') + '</div>' +
+      // Solo si algún tipo se repite: con todos distintos, "el más frecuente" no dice nada.
+      (k.masFrecuente && k.masFrecuente.veces > 1 ? '<p class="ayuda">Desvío más frecuente: <b>' + esc(k.masFrecuente.tipo) + '</b> (' + k.masFrecuente.veces + ' de ' + k.total + ')</p>' : '');
+    return '<div class="nc-barra"><label>Ver<select data-act-change="nc-filtro" aria-label="Qué NC ver">' + opciones(opc, filtro) + '</select></label>' +
+      '<button class="btn primario" data-act="nueva-nc">+ Nueva NC</button></div>' + kpis +
+      (lista.length ? lista.slice().reverse().map(tarjetaNc).join('')
+        : '<p class="vacio">' + (filtro === 'abiertas' ? 'No hay NC abiertas.' : 'Todavía no hay NC en ' + esc(Reglas.nombreMes(filtro)) + '.') + '</p>') +
+      '<div class="acciones"><button class="btn" data-act="imprimir-nc">Imprimir registro / PDF</button>' +
+      '<label class="btn">Importar del registro individual (.json)<input type="file" accept=".json,application/json" data-act-change="importar-nc" hidden></label></div>' +
+      '<p class="ayuda">Importar trae las NC de la app <i>Registro de No Conformidades</i> (su respaldo 💾) para no cargarlas de nuevo.</p>';
+  }
+
+  function tarjetaNc(n) {
+    var d = n.datos;
+    var vencida = Reglas.ncAbierta(d) && d.plazo && d.plazo < Reglas.hoy();
+    return '<button class="lote-item nc-item nc-' + esc(d.estado) + ' sev-' + esc(d.sev || 'ninguna') + '" data-act="abrir-nc" data-id="' + esc(n.id) + '">' +
+      '<span class="li-num">' + esc(n.numero || 'NC nueva') + '</span>' +
+      '<span class="li-prod">' + esc(d.tipo || d.desc) + (d.sev ? ' · ' + esc(d.sev) : '') + '</span>' +
+      '<span class="li-meta">' + [Reglas.fechaLarga(d.fecha), d.lote, d.deteccion].filter(Boolean).map(esc).join(' · ') +
+      (vencida ? ' · <b class="txt-nok">plazo vencido</b>' : '') + '</span>' +
+      '<span class="li-estado">' + esc(Reglas.NC_ESTADOS[d.estado]) + (n.pendiente ? ' · ⏳' : '') + '</span></button>';
+  }
+
+  // Ficha de una NC (nueva o existente). Cualquiera de Calidad la edita, la cierra y verifica la eficacia.
+  pantallas.nc = function () {
+    var n = ui.ncId ? Store.nc(ui.ncId) : null;
+    if (ui.ncId && !n) return '<p class="vacio">La NC ya no está en esta tablet.</p><button class="btn" data-act="volver-nc">Volver</button>';
+    var d = n ? n.datos : ui.ncNueva;
+    var tipos = tiposNc().map(function (t) { return t.nombre; });
+    if (d.tipo && tipos.indexOf(d.tipo) < 0) tipos.push(d.tipo);   // un tipo que ya no está en la lista se conserva
+    var detecciones = Reglas.DETECCIONES.slice();
+    if (d.deteccion && detecciones.indexOf(d.deteccion) < 0) detecciones.push(d.deteccion);
+    var lista = function (xs) { return [{ v: '', t: '—' }].concat(xs.map(function (x) { return { v: x, t: x }; })); };
+    var campo = function (nombre, etq, attrs) { return '<label>' + etq + '<input name="' + nombre + '" value="' + esc(d[nombre] || '') + '" ' + (attrs || '') + '></label>'; };
+    var abierta = Reglas.ncAbierta(d);
+    var lote = d.loteId ? Store.lote(d.loteId) : null;
+    return '<section class="tarjeta"><div class="cab-fila"><button class="btn chico" data-act="volver-nc">← NC</button>' +
+      '<span class="li-estado nc-' + esc(d.estado) + '">' + esc(Reglas.NC_ESTADOS[d.estado]) + '</span></div>' +
+      '<h2>' + (n ? esc(n.numero || 'NC sin número') : 'Nueva NC') + '</h2>' +
+      (n && !n.numero ? '<p class="ayuda">El número (NC-' + esc(String(d.fecha).slice(0, 4)) + '-…) lo pone el servidor cuando la NC se sube.</p>' : '') +
+      (d.creadaPor ? '<p class="meta">Cargó ' + esc(d.creadaPor) + '</p>' : '') +
+      '<form data-form="nc">' +
+      '<div class="fila2">' + campo('fecha', 'Fecha de detección *', 'type="date" required') +
+      '<label>Detección<select name="deteccion">' + opciones(lista(detecciones), d.deteccion) + '</select></label></div>' +
+      '<div class="fila2">' + campo('lote', 'N° de lote') + campo('prod', 'Producto') + '</div>' +
+      campo('cliente', 'Cliente') +
+      (lote ? '<button type="button" class="btn chico" data-act="abrir" data-id="' + esc(d.loteId) + '">Ver el lote ' + esc(lote.datos.cab.lote) + '</button>' : '') +
+      '<div class="fila2"><label>Tipo de desvío<select name="tipo" data-act-change="nc-tipo">' + opciones(lista(tipos), d.tipo) + '</select></label>' +
+      '<label>Gravedad<select name="sev">' + opciones(lista(Reglas.SEVERIDADES), d.sev) + '</select></label></div>' +
+      '<label>Descripción<textarea name="desc" rows="3">' + esc(d.desc) + '</textarea></label>' +
+      '<div class="fila3">' + campo('cantNC', 'Cantidad no conforme', 'inputmode="decimal"') + campo('cantTot', 'Cantidad total', 'inputmode="decimal"') +
+      campo('unidadCant', 'Unidad', 'placeholder="L, kg, u"') + '</div>' +
+      '<label>Acción correctiva / disposición<textarea name="ac" rows="2">' + esc(d.ac) + '</textarea></label>' +
+      '<div class="fila2">' + campo('resp', 'Responsable') + campo('plazo', 'Plazo', 'type="date"') + '</div>' +
+      (abierta ? '<label>Estado<select name="estado">' + opciones([{ v: 'abierta', t: 'Abierta' }, { v: 'en_proceso', t: 'En proceso' }], d.estado) + '</select></label>' : '') +
+      (d.estado === 'cerrada' ? '<p class="info">Cerrada el ' + esc(Reglas.fechaLarga(d.cierre)) + (d.cerradaPor ? ' por ' + esc(d.cerradaPor) : '') + '</p>' +
+        '<label>Verificación de eficacia (ISO 9001, 10.2)<select name="eficacia">' +
+        opciones(Object.keys(Reglas.EFICACIA).map(function (k) { return { v: k, t: Reglas.EFICACIA[k] }; }), d.eficacia) + '</select></label>' : '') +
+      '<div class="acciones"><button class="btn" type="button" data-act="volver-nc">Cancelar</button>' +
+      '<button class="btn primario" type="submit">' + (n ? 'Guardar' : 'Crear NC') + '</button></div>' +
+      (n ? '<div class="acciones">' +
+        (abierta ? '<button class="btn" type="button" data-act="cerrar-nc">✓ Cerrar NC</button>' : '<button class="btn" type="button" data-act="reabrir-nc">Reabrir</button>') +
+        (d.estado !== 'anulada' ? '<button class="btn peligro" type="button" data-act="anular-nc">Anular</button>' : '') + '</div>' : '') +
+      '</form></section>';
+  };
+
+  function leerFormNc(f) {
+    var d = {};
+    ['fecha', 'deteccion', 'lote', 'prod', 'cliente', 'tipo', 'sev', 'desc', 'cantNC', 'cantTot', 'unidadCant', 'ac', 'resp', 'plazo', 'estado', 'eficacia']
+      .forEach(function (k) { if (f[k]) d[k] = f[k].value.trim(); });
+    d.cliente = Reglas.normalizarCliente(d.cliente || '');
+    return d;
+  }
+
+  // Guarda lo del formulario (más "extra": cerrar, reabrir, anular). Devuelve false si falta algo.
+  function guardarNc(f, extra) {
+    var base = ui.ncId ? Store.nc(ui.ncId).datos : ui.ncNueva;
+    var d = Object.assign(Reglas.copia(base), leerFormNc(f), extra || {});
+    Reglas.actualizarPlazo(d, plazoNc());
+    var problema = Reglas.validarNc(d);
+    if (problema) { aviso(problema); return false; }
+    if (ui.ncId) Store.cambiarNc(ui.ncId, function (x) { Object.assign(x, d); });
+    else ui.ncId = Store.crearNc(d);
+    programarSync();
+    return true;
+  }
+
+  // NC del lote y botón para crearlas desde sus desvíos (sin repetir las ya creadas).
+  function seccionNcDelLote(l) {
+    var propias = ordenarNc(Store.ncs().filter(function (n) { return n.datos.loteId === l.id; }));
+    var porCrear = Reglas.ncsDesdeLote(l.datos, l.id, tiposNc(), plazoNc(),
+      propias.map(function (n) { return n.datos.origen; }).filter(Boolean));
+    if (!propias.length && !porCrear.length) return '';
+    return '<div class="nc-lote">' +
+      (propias.length ? '<p class="ayuda">NC de este lote:</p>' + propias.map(function (n) {
+        return '<button type="button" class="btn chico" data-act="abrir-nc" data-id="' + esc(n.id) + '">' + esc(n.numero || 'NC nueva') +
+          ' · ' + esc(Reglas.NC_ESTADOS[n.datos.estado]) + '</button>';
+      }).join('') : '') +
+      (porCrear.length ? '<button type="button" class="btn" data-act="crear-nc-lote">Crear ' + porCrear.length + ' NC desde los desvíos</button>' : '') +
+      '</div>';
+  }
+
+  // ⚙ No conformidades (admin): codificación del registro, plazo y tipos de desvío.
+  function seccionConfigNc() {
+    var cfg = config();
+    var tipos = ui.tiposNcEdit || tiposNc();
+    var sevs = [{ v: '', t: '— sin gravedad' }].concat(Reglas.SEVERIDADES.map(function (x) { return { v: x, t: x }; }));
+    return '<section class="tarjeta" id="config-nc"><h2>No conformidades</h2><form data-form="config-nc">' +
+      '<div class="fila3"><label>Código del registro<input name="ncCodigo" value="' + esc(cfg.ncCodigo || '') + '" placeholder="REG-NC"></label>' +
+      '<label>Versión<input name="ncVersion" value="' + esc(cfg.ncVersion || '') + '" placeholder="01"></label>' +
+      '<label>Plazo (días hábiles)<input name="ncPlazoDias" type="number" min="1" max="90" value="' + esc(plazoNc()) + '"></label></div>' +
+      '<h3>Tipos de desvío</h3><p class="ayuda">Al elegir un tipo en una NC, la gravedad se completa sola (se puede cambiar). ' +
+      'Si el nombre coincide con un control de la plantilla (por ejemplo «Inducción»), las NC creadas desde un lote lo toman solas.</p>' +
+      tipos.map(function (t, i) {
+        return '<div class="fila-tipo"><input name="tipo-nombre" value="' + esc(t.nombre) + '" aria-label="Tipo de desvío ' + (i + 1) + '">' +
+          '<select name="tipo-sev" aria-label="Gravedad">' + opciones(sevs, t.sev) + '</select>' +
+          '<button type="button" class="btn chico peligro" data-act="tipo-nc-quitar" data-i="' + i + '" aria-label="Quitar">✕</button></div>';
+      }).join('') +
+      '<button type="button" class="btn" data-act="tipo-nc-agregar">+ Tipo de desvío</button>' +
+      '<button class="btn primario" type="submit">Guardar</button></form></section>';
+  }
+
+  function leerTiposNcForm() {
+    var nombres = document.querySelectorAll('[data-form="config-nc"] [name="tipo-nombre"]');
+    var sevs = document.querySelectorAll('[data-form="config-nc"] [name="tipo-sev"]');
+    return [].map.call(nombres, function (inp, i) { return { nombre: inp.value, sev: sevs[i].value }; });
   }
 
   // Formulario de cabecera: sirve para lote nuevo y para editar.
@@ -553,7 +718,7 @@
           ' sin completar, autorizado por ' + esc(d.cierreForzado.por) + '</p>' : '') +
         (esSuperior() ? '<button class="btn" data-act="reabrir">Reabrir lote</button>' : '');
     }
-    return '<section class="tarjeta"><h3>Dictamen</h3>' + resumen + desvios + acciones +
+    return '<section class="tarjeta"><h3>Dictamen</h3>' + resumen + desvios + seccionNcDelLote(l) + acciones +
       '<div class="acciones"><button class="btn" data-act="imprimir">Imprimir / PDF</button>' +
       (esSuperior() ? '<button class="btn peligro" data-act="borrar-lote">Borrar lote</button>' : '') + '</div></section>';
   }
@@ -562,11 +727,14 @@
   pantallas.conflictos = function () {
     var cs = Store.conflictos();
     return '<section class="tarjeta"><h2>Conflictos</h2>' +
-      '<p class="ayuda">Otro equipo modificó estos lotes mientras esta tablet tenía cambios sin subir. ' +
+      '<p class="ayuda">Otro equipo modificó estos lotes o NC mientras esta tablet tenía cambios sin subir. ' +
       'La tablet se quedó con la versión del servidor; acá está la tuya para que decidas.</p>' +
       (cs.length ? cs.map(function (c, i) {
-        return '<div class="pcard"><b>' + esc(c.datos.cab.lote) + ' · ' + esc(c.datos.cab.prod) + '</b>' +
-          '<p class="meta">Tu versión del ' + esc(new Date(c.cuando).toLocaleString('es-AR')) + ' · estado ' + esc(ESTADOS[c.datos.estado]) + '</p>' +
+        var esNc = c.tipo === 'nc';
+        var titulo = esNc ? (c.numero || 'NC') + ' · ' + (c.datos.tipo || c.datos.desc) : c.datos.cab.lote + ' · ' + c.datos.cab.prod;
+        return '<div class="pcard"><b>' + esc(titulo) + '</b>' +
+          '<p class="meta">Tu versión del ' + esc(new Date(c.cuando).toLocaleString('es-AR')) + ' · estado ' +
+          esc(esNc ? Reglas.NC_ESTADOS[c.datos.estado] : ESTADOS[c.datos.estado]) + '</p>' +
           '<div class="acciones"><button class="btn" data-act="conflicto" data-i="' + i + '" data-v="descartar">Quedarme con la del servidor</button>' +
           '<button class="btn primario" data-act="conflicto" data-i="' + i + '" data-v="mia">Usar la mía</button></div></div>';
       }).join('') : '<p class="vacio">No hay conflictos.</p>') +
@@ -588,7 +756,7 @@
       '<p class="ayuda">La codificación del registro (código, versión, vigencia, quién elaboró y aprobó) va en cada plantilla de control.</p>' +
       '<label>Líneas (separadas por coma)<input name="lineas" value="' + esc((cfg.lineas || []).join(', ')) + '"></label>' +
       '<button class="btn primario" type="submit">Guardar configuración</button></form></section>' +
-      seccionPlantillas() +
+      seccionPlantillas() + seccionConfigNc() +
       '<section class="tarjeta" id="miembros"><h2>Personas</h2><p class="ayuda">Cargando…</p></section>' +
       '<button class="btn" data-act="inicio">Volver</button>';
     setTimeout(cargarMiembros, 0);
@@ -732,6 +900,35 @@
 
   // ───────────────────────── Eventos ─────────────────────────
 
+  // Trae las NC del respaldo de la app individual (calidad-no-conformidades). No repite las que
+  // ya se importaron (cada una recuerda de qué fila vino) y saltea las que no tienen lo mínimo.
+  async function importarNcIndividual(input) {
+    var archivo = input.files[0];
+    input.value = '';
+    if (!archivo) return;
+    var filas;
+    try {
+      var j = JSON.parse(await archivo.text());
+      filas = Array.isArray(j) ? j : j && j.filas;
+      if (!Array.isArray(filas)) throw new Error();
+    } catch (e) { return aviso('Ese archivo no es un respaldo del registro de NC.'); }
+    var ya = Store.ncs().map(function (n) { return n.datos.importadoDe; }).filter(Boolean);
+    var nuevas = [], salteadas = 0;
+    filas.forEach(function (f) {
+      var d = Reglas.desdeRegistroIndividual(f || {});
+      if (d.importadoDe && ya.indexOf(d.importadoDe) >= 0) return;
+      if (Reglas.validarNc(d)) { salteadas++; return; }
+      nuevas.push(d);
+    });
+    if (!nuevas.length) return aviso('No hay NC nuevas para importar' + (salteadas ? ' (' + salteadas + ' sin fecha o sin datos)' : '') + '.');
+    if (!confirm('Se van a importar ' + nuevas.length + ' NC' + (salteadas ? ' (' + salteadas + ' se saltean por no tener fecha o datos)' : '') +
+        '.\nEl servidor les pone número a cada una al subirlas. ¿Seguir?')) return;
+    nuevas.forEach(function (d) { d.creadaPor = quienSoy() + ' · importada'; Store.crearNc(d); });
+    programarSync(0);
+    aviso(nuevas.length + ' NC importadas');
+    ir('inicio', { tab: 'nc', ncFiltro: 'abiertas' });
+  }
+
   var acciones = {
     inicio: function () { ir('inicio'); },
     tab: function (b) { ir('inicio', { tab: b.dataset.tab, resultados: null }); },
@@ -745,7 +942,56 @@
       ir('lote', { loteId: b.dataset.id });
     },
     'editar-cab': function () { ir('nuevo', { loteId: ui.loteId }); },
-    config: function () { ir('config'); },
+    config: function () { ir('config', { tiposNcEdit: null }); },
+    'nueva-nc': function () {
+      ir('nc', { ncId: null, ncNueva: Reglas.nuevaNc({ creadaPor: quienSoy() }, plazoNc()) });
+    },
+    'abrir-nc': function (b) { ir('nc', { ncId: b.dataset.id }); },
+    'volver-nc': function () { ir('inicio', { tab: 'nc' }); },
+    'cerrar-nc': function () {
+      if (!confirm('¿Cerrar la NC? Queda registrado que la cerraste vos, con fecha de hoy.')) return;
+      if (guardarNc(document.querySelector('[data-form="nc"]'), { estado: 'cerrada', cierre: Reglas.hoy(), cerradaPor: quienSoy() })) {
+        aviso('NC cerrada. Cuando puedas, verificá la eficacia.');
+        dibujar();
+      }
+    },
+    'reabrir-nc': function () {
+      if (!confirm('¿Reabrir la NC? Se borra el cierre y la verificación de eficacia.')) return;
+      if (guardarNc(document.querySelector('[data-form="nc"]'), { estado: 'abierta', cierre: '', cerradaPor: '', eficacia: 'pendiente' })) dibujar();
+    },
+    'anular-nc': function () {
+      if (!confirm('¿Anular la NC? Queda en el registro como anulada (por ejemplo, si se cargó por error) y no cuenta en los indicadores.')) return;
+      if (guardarNc(document.querySelector('[data-form="nc"]'), { estado: 'anulada' })) { aviso('NC anulada'); ir('inicio', { tab: 'nc' }); }
+    },
+    'crear-nc-lote': function () {
+      var l = Store.lote(ui.loteId);
+      var hechas = Store.ncs().filter(function (n) { return n.datos.loteId === l.id; }).map(function (n) { return n.datos.origen; });
+      var nuevas = Reglas.ncsDesdeLote(l.datos, l.id, tiposNc(), plazoNc(), hechas);
+      if (!nuevas.length) return;
+      if (!confirm('Se van a crear ' + nuevas.length + ' NC: una por cada control con desvío (las corregidas en el momento entran cerradas).\n¿Seguir?')) return;
+      nuevas.forEach(function (d) { d.creadaPor = quienSoy(); Store.crearNc(d); });
+      programarSync(0);
+      aviso(nuevas.length + ' NC creadas: completá la acción en la pestaña NC');
+      dibujar();
+    },
+    'imprimir-nc': function () {
+      var filtro = ui.ncFiltro || mesActual();
+      var lista = ordenarNc(Store.ncs().filter(function (n) {
+        return filtro === 'abiertas' ? Reglas.ncAbierta(n.datos) : Reglas.mesDeNc(n.datos) === filtro;
+      }));
+      Imprimir.registroNc(lista, filtro === 'abiertas' ? 'NC abiertas al ' + Reglas.fechaLarga(Reglas.hoy()) : Reglas.nombreMes(filtro), config(), perfil().empresa);
+    },
+    'tipo-nc-agregar': function () {
+      ui.tiposNcEdit = leerTiposNcForm().concat([{ nombre: '', sev: '' }]);
+      dibujar();
+      var ins = document.querySelectorAll('[name="tipo-nombre"]');
+      ins[ins.length - 1].focus();
+    },
+    'tipo-nc-quitar': function (b) {
+      ui.tiposNcEdit = leerTiposNcForm();
+      ui.tiposNcEdit.splice(Number(b.dataset.i), 1);
+      dibujar();
+    },
     bienvenida: function () { ir('bienvenida'); },
     conflictos: function () { ir('conflictos'); },
     conflicto: function (b) {
@@ -1045,6 +1291,27 @@
         dibujar();
       } catch (e) { aviso(e.message); }
     },
+    nc: function (f) {
+      var nueva = !ui.ncId;
+      if (!guardarNc(f)) return;
+      aviso(nueva ? 'NC creada' : 'NC guardada');
+      ir('inicio', { tab: 'nc', ncFiltro: ui.ncFiltro === 'abiertas' ? 'abiertas' : Reglas.mesDeNc(Store.nc(ui.ncId).datos) });
+    },
+    'config-nc': async function (f) {
+      var cfg = Object.assign({}, config(), {
+        ncCodigo: f.ncCodigo.value.trim(), ncVersion: f.ncVersion.value.trim(),
+        ncPlazoDias: Math.max(1, Math.min(90, parseInt(f.ncPlazoDias.value, 10) || 5)),
+        tiposNc: Reglas.normalizarTiposNc(leerTiposNcForm())
+      });
+      delete cfg.inductoras;
+      try {
+        await Nube.guardarEmpresa(perfil().empresaId, perfil().empresa, cfg);
+        Store.setPerfil(Object.assign({}, perfil(), { config: cfg }));
+        ui.tiposNcEdit = null;
+        aviso('No conformidades: configuración guardada');
+        dibujar();
+      } catch (e) { aviso(e.message); }
+    },
     invitar: async function (f) {
       try {
         await Nube.invitar(perfil().empresaId, f.email.value, f.rol.value);
@@ -1076,6 +1343,14 @@
 
   document.addEventListener('change', async function (ev) {
     var s = ev.target;
+    if (s.dataset && s.dataset.actChange === 'nc-filtro') { ir('inicio', { tab: 'nc', ncFiltro: s.value }); return; }
+    if (s.dataset && s.dataset.actChange === 'nc-tipo') {
+      // El tipo sugiere la gravedad (se puede cambiar después).
+      var sev = Reglas.sevSugerida(tiposNc(), s.value);
+      if (sev) s.form.sev.value = sev;
+      return;
+    }
+    if (s.dataset && s.dataset.actChange === 'importar-nc') { importarNcIndividual(s); return; }
     if (s.dataset && s.dataset.actChange === 'editor') { leerEditor(); dibujar(); return; }
     if (s.dataset && s.dataset.actChange === 'plantilla-lote') {
       // Se guarda lo ya escrito y se redibuja con los rangos de la plantilla elegida.

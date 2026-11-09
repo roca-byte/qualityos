@@ -413,6 +413,178 @@ var Reglas = (function () {
     return [plantillaDesdeConfigVieja(config || {})];
   }
 
+  // ───────────────────────── No conformidades ─────────────────────────
+  // Una NC se carga el día que se detecta (sale de los desvíos de un lote o se carga a mano) y se
+  // sigue hasta cerrarla y verificar su eficacia (ISO 9001, 10.2). El registro se entrega por mes.
+  // Forma de datos de una NC (la fila de la base tiene además numero, version, etc.):
+  //   fecha, deteccion, lote, loteId, prod, cliente, tipo, sev, desc, cantNC, cantTot, unidadCant,
+  //   ac, resp, plazo, plazoAuto, estado, cierre, cerradaPor, eficacia, origen, importadoDe, creadaPor
+  // El servidor valida lo mismo que validarNc (supabase/migrations/0005_no_conformidades.sql).
+
+  var NC_ESTADOS = { abierta: 'Abierta', en_proceso: 'En proceso', cerrada: 'Cerrada', anulada: 'Anulada' };
+  var SEVERIDADES = ['Leve', 'Moderado', 'Crítico'];
+  var EFICACIA = { pendiente: 'Pendiente', eficaz: 'Eficaz', no_eficaz: 'No eficaz' };
+  var DETECCIONES = ['Control en línea', 'Control final', 'Control de ingreso', 'Reclamo de cliente', 'Auditoría', 'Otro'];
+  var MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  var PLAZO_NC_DIAS = 5;   // días hábiles para el plazo de la acción, si la empresa no configura otro
+
+  // Tipos de desvío para arrancar. Cada empresa arma los suyos en ⚙ (config.tiposNc).
+  var TIPOS_NC_INICIALES = [
+    ['Producto fuera de especificación', 'Crítico'], ['Peso / volumen fuera de rango', 'Leve'],
+    ['Envase dañado', 'Moderado'], ['Cierre / tapa defectuosa', 'Crítico'], ['Rotulado / etiqueta incorrecta', 'Moderado'],
+    ['Trazabilidad / codificación ilegible', 'Crítico'], ['Embalaje / paletizado incorrecto', 'Moderado'], ['Materia prima no conforme', 'Crítico']
+  ].map(function (t) { return { nombre: t[0], sev: t[1] }; });
+
+  // Sin vacíos ni repetidos (sin importar mayúsculas) y con gravedad válida.
+  function normalizarTiposNc(lista) {
+    var vistos = {};
+    return (lista || []).map(function (t) {
+      return { nombre: String((t && t.nombre) || '').trim(), sev: SEVERIDADES.indexOf(t && t.sev) >= 0 ? t.sev : '' };
+    }).filter(function (t) {
+      var k = t.nombre.toLowerCase();
+      if (!t.nombre || vistos[k]) return false;
+      vistos[k] = true;
+      return true;
+    });
+  }
+  function tiposNc(config) {
+    return config && Array.isArray(config.tiposNc) ? normalizarTiposNc(config.tiposNc) : copia(TIPOS_NC_INICIALES);
+  }
+  function sevSugerida(tipos, tipo) {
+    var t = tipos.filter(function (x) { return x.nombre === tipo; })[0];
+    return t ? t.sev : '';
+  }
+  function plazoNcDias(config) {
+    var n = parseInt(config && config.ncPlazoDias, 10);
+    return n > 0 ? n : PLAZO_NC_DIAS;
+  }
+
+  // Suma días hábiles (sin sábados ni domingos), en hora local.
+  function sumarHabiles(iso, n) {
+    var p = String(iso).split('-').map(Number);
+    var d = new Date(p[0], p[1] - 1, p[2]);
+    for (var a = 0; a < n;) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) a++; }
+    return hoy(d);
+  }
+
+  function nuevaNc(campos, plazoDias) {
+    var d = Object.assign({
+      fecha: hoy(), deteccion: '', lote: '', loteId: '', prod: '', cliente: '', tipo: '', sev: '', desc: '',
+      cantNC: '', cantTot: '', unidadCant: '', ac: '', resp: '', plazo: '', plazoAuto: '',
+      estado: 'abierta', cierre: '', cerradaPor: '', eficacia: 'pendiente', origen: '', creadaPor: ''
+    }, campos || {});
+    if (!d.plazo && d.fecha && d.estado !== 'cerrada') d.plazo = d.plazoAuto = sumarHabiles(d.fecha, plazoDias || PLAZO_NC_DIAS);
+    return d;
+  }
+
+  // El plazo se recalcula al cambiar la fecha, salvo que se haya puesto a mano.
+  function actualizarPlazo(d, plazoDias) {
+    if (!d.fecha || (d.plazo && d.plazo !== d.plazoAuto)) return d;
+    d.plazo = d.plazoAuto = sumarHabiles(d.fecha, plazoDias || PLAZO_NC_DIAS);
+    return d;
+  }
+
+  function ncAbierta(d) { return d.estado === 'abierta' || d.estado === 'en_proceso'; }
+
+  // Devuelve qué falta, o null si se puede guardar.
+  function validarNc(d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) return 'Falta la fecha de detección.';
+    if (!NC_ESTADOS[d.estado]) return 'Estado inválido.';
+    if (!String(d.tipo || '').trim() && !String(d.desc || '').trim()) return 'Elegí el tipo de desvío o escribí una descripción.';
+    if (d.estado === 'cerrada' && !d.cierre) return 'Una NC cerrada necesita la fecha de cierre.';
+    if (d.sev && SEVERIDADES.indexOf(d.sev) < 0) return 'Gravedad inválida.';
+    return null;
+  }
+
+  // ── Meses: se carga todos los días y se entrega por mes ──
+  function mesDeNc(d) { return String(d.fecha || '').slice(0, 7); }
+  function nombreMes(mes) {
+    var p = String(mes || '').split('-');
+    return p.length === 2 ? MESES[Number(p[1]) - 1] + ' ' + p[0] : '';
+  }
+  // Meses con NC, del más nuevo al más viejo, siempre con el actual.
+  function mesesNc(lista, mesActual) {
+    var s = {};
+    s[mesActual] = true;
+    lista.forEach(function (d) { if (mesDeNc(d)) s[mesDeNc(d)] = true; });
+    return Object.keys(s).sort().reverse();
+  }
+  // filtro: 'aaaa-mm' o 'abiertas' (abiertas y en proceso de todos los meses).
+  function filtrarNc(lista, filtro) {
+    return lista.filter(function (d) { return filtro === 'abiertas' ? ncAbierta(d) : mesDeNc(d) === filtro; });
+  }
+
+  // Indicadores del registro (las anuladas no cuentan).
+  function kpisNc(lista) {
+    var a = lista.filter(function (d) { return d.estado !== 'anulada'; });
+    var sNC = 0, sT = 0, freq = {};
+    a.forEach(function (d) {
+      var x = numero(d.cantNC), y = numero(d.cantTot);
+      if (!isNaN(x)) sNC += x;
+      if (!isNaN(y)) sT += y;
+      if (d.tipo) freq[d.tipo] = (freq[d.tipo] || 0) + 1;
+    });
+    var top = Object.keys(freq).sort(function (x, y) { return freq[y] - freq[x]; })[0];
+    // En plazo: de las que tienen plazo y ya se cerraron, cuántas cerraron a tiempo.
+    var cerradas = a.filter(function (d) { return d.estado === 'cerrada' && d.plazo && d.cierre; });
+    var aTiempo = cerradas.filter(function (d) { return d.cierre <= d.plazo; });
+    var sev = { Leve: 0, Moderado: 0, 'Crítico': 0 };
+    a.forEach(function (d) { if (sev[d.sev] !== undefined) sev[d.sev]++; });
+    return {
+      total: a.length,
+      abiertas: a.filter(ncAbierta).length,
+      tasa: sT > 0 ? Math.round(sNC / sT * 1000) / 10 : null,
+      masFrecuente: top ? { tipo: top, veces: freq[top], pct: Math.round(freq[top] / a.length * 100) } : null,
+      enPlazo: cerradas.length ? Math.round(aTiempo.length / cerradas.length * 100) : null,
+      vencidas: a.filter(function (d) { return ncAbierta(d) && d.plazo && d.plazo < hoy(); }).length,
+      sev: sev
+    };
+  }
+
+  // NC a partir de los desvíos de un lote. El mismo control que falla en varias unidades del lote
+  // es UNA no conformidad (una NC por lote · evento · tipo de desvío): se agrupan y se listan las
+  // unidades. Lo reprocesado en el momento entra cerrado. "existentes" son los "origen" de las NC
+  // ya creadas desde este lote, para no crearlas dos veces.
+  function ncsDesdeLote(lote, loteId, tipos, plazoDias, existentes) {
+    var grupos = {}, orden = [], p = lote.plantilla, c = lote.cab;
+    desvios(lote).forEach(function (x) {
+      var clave = [loteId, x.etapa, x.control, x.corregido ? 'r' : 'a'].join('|');
+      if (!grupos[clave]) { grupos[clave] = { x: x, unidades: [] }; orden.push(clave); }
+      // La observación es de la unidad (no del control): va pegada a esa unidad.
+      grupos[clave].unidades.push(p.unidad + ' ' + x.unidad + ': ' + x.detalle + (x.obs ? ' — ' + x.obs : ''));
+    });
+    return orden.filter(function (k) { return (existentes || []).indexOf(k) < 0; }).map(function (k) {
+      var g = grupos[k], x = g.x;
+      var tipo = (tipos.filter(function (t) { return t.nombre.toLowerCase() === x.control.toLowerCase(); })[0] || {}).nombre || '';
+      var fecha = c.fecha || hoy();
+      return nuevaNc({
+        fecha: fecha, deteccion: x.etapa, lote: c.lote, loteId: loteId, prod: c.prod, cliente: c.cliente || '',
+        tipo: tipo, sev: sevSugerida(tipos, tipo), unidadCant: p.cantidad || '',
+        desc: x.control + ' · ' + g.unidades.join('; '),
+        estado: x.corregido ? 'cerrada' : 'abierta', cierre: x.corregido ? fecha : '',
+        ac: x.corregido ? 'Corregido en el momento (reproceso)' : '', origen: k
+      }, plazoDias);
+    });
+  }
+
+  // Una fila del respaldo de la app individual (calidad-no-conformidades) → NC de QualityOS.
+  // Así se puede pasar de una app a la otra sin volver a cargar nada.
+  var ESTADO_INDIVIDUAL = { Pendiente: 'abierta', 'En proceso': 'en_proceso', Finalizado: 'cerrada', Anulado: 'anulada' };
+  var DETEC_INDIVIDUAL = { 'CONTROL LÍNEA': 'Control en línea', 'CONTROL FINAL': 'Control final', 'CONTROL INGRESO': 'Control de ingreso' };
+  function desdeRegistroIndividual(f) {
+    var estado = ESTADO_INDIVIDUAL[f.est] || 'abierta';
+    var fecha = /^\d{4}-\d{2}-\d{2}$/.test(f.fecha || '') ? f.fecha : '';
+    return nuevaNc({
+      fecha: fecha, deteccion: DETEC_INDIVIDUAL[f.detec] || '', lote: f.lote || '', prod: f.prod || '', cliente: f.cliente || '',
+      tipo: f.tipo || '', sev: SEVERIDADES.indexOf(f.sev) >= 0 ? f.sev : '', desc: f.desc || '',
+      cantNC: f.litNC || '', cantTot: f.litTot || '', unidadCant: (f.litNC || f.litTot) ? 'L' : '',
+      ac: f.ac || '', resp: f.resp || '', plazo: f.plazo || '', plazoAuto: f.plazo || '',
+      estado: estado, cierre: f.cierre || (estado === 'cerrada' ? fecha : ''),
+      eficacia: { Eficaz: 'eficaz', 'No eficaz': 'no_eficaz' }[f.eficacia] || 'pendiente',
+      importadoDe: String(f.id || '')
+    });
+  }
+
   return {
     TIPOS: TIPOS, EJEMPLOS: EJEMPLOS,
     hoy: hoy, fechaLarga: fechaLarga, numero: numero, copia: copia, nuevoId: nuevoId,
@@ -422,7 +594,13 @@ var Reglas = (function () {
     desvios: desvios, estadoPorDictamen: estadoPorDictamen, normalizarCliente: normalizarCliente,
     nuevaUnidad: nuevaUnidad, nuevoLote: nuevoLote, plantillaEjemplo: plantillaEjemplo,
     validarPlantilla: validarPlantilla, plantillas: plantillas, migrarLote: migrarLote,
-    docDe: docDe, siguienteVersion: siguienteVersion, cambioContenido: cambioContenido
+    docDe: docDe, siguienteVersion: siguienteVersion, cambioContenido: cambioContenido,
+    NC_ESTADOS: NC_ESTADOS, SEVERIDADES: SEVERIDADES, EFICACIA: EFICACIA, DETECCIONES: DETECCIONES,
+    TIPOS_NC_INICIALES: TIPOS_NC_INICIALES, normalizarTiposNc: normalizarTiposNc, tiposNc: tiposNc,
+    sevSugerida: sevSugerida, plazoNcDias: plazoNcDias, sumarHabiles: sumarHabiles,
+    nuevaNc: nuevaNc, actualizarPlazo: actualizarPlazo, ncAbierta: ncAbierta, validarNc: validarNc,
+    mesDeNc: mesDeNc, nombreMes: nombreMes, mesesNc: mesesNc, filtrarNc: filtrarNc, kpisNc: kpisNc,
+    ncsDesdeLote: ncsDesdeLote, desdeRegistroIndividual: desdeRegistroIndividual
   };
 })();
 

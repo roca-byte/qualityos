@@ -17,6 +17,15 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
   al cambiar el contenido la app ofrece la versión siguiente; el PDF usa la codificación que guardó
   el lote. Ver `docs/DISENO.md` y `tests/e2e/plantillas.js`.
 
+- **No conformidades** (09/11/2026) — terminada. Pestaña NC con vista por mes y de abiertas,
+  indicadores, NC creadas desde los desvíos del lote (una por control), ficha con cierre y
+  verificación de eficacia, número por empresa y año asignado por el servidor, tipos de desvío
+  en ⚙, registro mensual para imprimir e importación del respaldo de la app individual.
+  Cualquiera de Calidad cierra (pedido del usuario). Ver "No conformidades" en `docs/DISENO.md`.
+  La app individual `calidad-no-conformidades` sigue aparte, con código propio.
+  **Pendiente para publicarla:** aplicar `supabase/migrations/0005_no_conformidades.sql` en el
+  proyecto de Supabase (SQL Editor) antes de subir la app nueva a GitHub Pages.
+
 ## Próximo
 
 1. **Etapa 2 · Productos y control por horario.** Catálogo de productos con su plantilla y sus

@@ -139,9 +139,9 @@ var Nube = (function () {
     dato(await sb().from('miembros').update(cambios).eq('empresa_id', empresaId).eq('user_id', userId));
   }
 
-  // ── Lotes ──
+  // ── Lotes y no conformidades ──
 
-  // Sube la bandeja de salida y baja lo que cambiaron otros equipos.
+  // Sube la bandeja de salida (lotes y NC) y baja lo que cambiaron otros equipos.
   // Devuelve { subidos, conflictos, bajados } o lanza si no hay conexión.
   async function sincronizar() {
     if (sincronizando) return null;
@@ -153,30 +153,40 @@ var Nube = (function () {
       var pend = Store.pendientes();
       for (var i = 0; i < pend.length; i++) {
         var p = pend[i];
-        var r = dato(await sb().rpc('guardar_lote', {
+        // Misma forma para las dos: guardar_lote devuelve {ok, lote}; guardar_nc, {ok, nc}.
+        var r = dato(await sb().rpc(p.tipo === 'nc' ? 'guardar_nc' : 'guardar_lote', {
           p_id: p.id, p_empresa: empresaId, p_version_base: p.version, p_datos: p.datos, p_borrar: p.borrar
         }));
-        if (r.ok) { Store.confirmar(p.id, p.cambios, r.lote); res.subidos++; }
-        else { Store.conflicto(p.id, r.lote); res.conflictos++; }
+        var fila = p.tipo === 'nc' ? r.nc : r.lote;
+        if (r.ok) { Store.confirmar(p.id, p.cambios, fila, p.tipo); res.subidos++; }
+        else { Store.conflicto(p.id, fila, p.tipo); res.conflictos++; }
       }
 
-      var desde = Store.ultimaBajada();
-      var corte = desde ? new Date(new Date(desde).getTime() - SOLAPAMIENTO_MS)
-                        : new Date(Date.now() - DIAS_PRIMERA_BAJADA * 864e5);
-      var filas = dato(await sb().from('lotes')
-        .select('id, version, borrado, datos, modificado')
-        .eq('empresa_id', empresaId)
-        .gt('modificado', corte.toISOString())
-        .order('modificado', { ascending: true })
-        .limit(1000));
-      filas.forEach(function (f) { Store.aplicarRemoto(f); });
-      if (filas.length) Store.setUltimaBajada(filas[filas.length - 1].modificado);
-      else Store.guardar();
-      res.bajados = filas.length;
+      res.bajados = await bajar('lotes', 'lote', 'id, version, borrado, datos, modificado', empresaId) +
+        await bajar('no_conformidades', 'nc', 'id, numero, version, borrado, datos, modificado', empresaId);
       return res;
     } finally {
       sincronizando = false;
     }
+  }
+
+  // Baja lo que cambió en una tabla desde la última vez (con un poco de solapamiento).
+  async function bajar(tabla, tipo, columnas, empresaId) {
+    var desde = Store.ultimaBajada(tipo);
+    // En la primera bajada de un equipo: NC de los últimos 13 meses (el registro se mira por mes y
+    // una NC abierta puede ser vieja); lotes, solo los de los últimos 60 días.
+    var dias = tipo === 'nc' ? 400 : DIAS_PRIMERA_BAJADA;
+    var corte = desde ? new Date(new Date(desde).getTime() - SOLAPAMIENTO_MS) : new Date(Date.now() - dias * 864e5);
+    var filas = dato(await sb().from(tabla)
+      .select(columnas)
+      .eq('empresa_id', empresaId)
+      .gt('modificado', corte.toISOString())
+      .order('modificado', { ascending: true })
+      .limit(1000));
+    filas.forEach(function (f) { Store.aplicarRemoto(f, tipo); });
+    if (filas.length) Store.setUltimaBajada(filas[filas.length - 1].modificado, tipo);
+    else Store.guardar();
+    return filas.length;
   }
 
   // Busca en todo el historial del servidor (no solo lo que está en la tablet).
