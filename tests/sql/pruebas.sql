@@ -231,3 +231,66 @@ do $$ begin
 end $$;
 select prueba.debe_fallar($$select public.valor_vacio('texto', '""')$$, 'permission denied');
 reset role;
+
+-- ── No conformidades (migración 0005) ──
+-- Cualquiera de Calidad crea, edita y cierra; borrar es de coordinación; numeración por año.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","email":"beto@uno.com"}', false);
+set role authenticated;
+do $$
+declare e uuid := (select id from public.empresas); r jsonb;
+begin
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333331', e, 0,
+    '{"fecha":"2026-11-05","estado":"abierta","tipo":"Peso fuera de rango","sev":"Leve","lote":"J-1","loteId":"22222222-2222-2222-2222-222222222222"}');
+  assert (r->>'ok')::boolean and r->'nc'->>'numero' = 'NC-2026-001', 'El inspector crea una NC y el servidor le pone número';
+  assert r->'nc'->>'lote_id' = '22222222-2222-2222-2222-222222222222', 'Guarda de qué lote salió';
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333332', e, 0, '{"fecha":"2026-11-06","estado":"abierta","desc":"Reclamo"}');
+  assert r->'nc'->>'numero' = 'NC-2026-002', 'Numeración correlativa';
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333333', e, 0, '{"fecha":"2027-01-02","estado":"abierta","desc":"Otro año"}');
+  assert r->'nc'->>'numero' = 'NC-2027-001', 'Cada año arranca en 001';
+  -- Cerrar (un inspector también puede: "cualquiera de Calidad")
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333331', e, 1,
+    '{"fecha":"2026-11-05","estado":"cerrada","cierre":"2026-11-08","tipo":"Peso fuera de rango","sev":"Leve","eficacia":"eficaz"}');
+  assert (r->>'ok')::boolean and (select estado from public.no_conformidades where numero = 'NC-2026-001') = 'cerrada',
+    'El inspector cierra la NC';
+  assert (select numero from public.no_conformidades where id = '33333333-3333-3333-3333-333333333331') = 'NC-2026-001',
+    'Editar no cambia el número';
+  -- Versión vieja: conflicto, nada se pisa
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333331', e, 1, '{"fecha":"2026-11-05","estado":"abierta","desc":"x"}');
+  assert (r->>'conflicto')::boolean and r->'nc'->>'estado' = 'cerrada', 'Versión vieja de una NC → conflicto';
+  assert (select count(*) from public.no_conformidades_historial) = 0, 'Un inspector no ve la auditoría de NC';
+end $$;
+select prueba.debe_fallar(format($$select public.guardar_nc(gen_random_uuid(), %L, 0, '{"estado":"abierta","desc":"x"}')$$, :'e1'), 'fecha de detección');
+select prueba.debe_fallar(format($$select public.guardar_nc(gen_random_uuid(), %L, 0, '{"fecha":"2026-11-05","estado":"abierta"}')$$, :'e1'), 'tipo de desvío o una descripción');
+select prueba.debe_fallar(format($$select public.guardar_nc(gen_random_uuid(), %L, 0, '{"fecha":"2026-11-05","estado":"cerrada","desc":"x"}')$$, :'e1'), 'fecha de cierre');
+select prueba.debe_fallar(format($$select public.guardar_nc(gen_random_uuid(), %L, 0, '{"fecha":"2026-11-05","estado":"rara","desc":"x"}')$$, :'e1'), 'Estado de NC inválido');
+select prueba.debe_fallar(format($$select public.guardar_nc('33333333-3333-3333-3333-333333333332', %L, 1, '{"fecha":"2026-11-06","estado":"abierta","desc":"Reclamo"}', true)$$, :'e1'), 'Solo coordinación');
+select prueba.debe_fallar($$update public.no_conformidades set estado = 'cerrada'$$, 'permission denied');
+select prueba.debe_fallar($$select public.registrar_historial_nc()$$, 'permission denied');
+reset role;
+
+-- Otra empresa no ve ni toca las NC de Uno
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","email":"caro@dos.com"}', false);
+set role authenticated;
+do $$ begin
+  assert (select count(*) from public.no_conformidades) = 0, 'Caro no ve NC de otra empresa';
+end $$;
+select prueba.debe_fallar(format($$select public.guardar_nc('33333333-3333-3333-3333-333333333332', %L, 1, '{"fecha":"2026-11-06","estado":"abierta","desc":"x"}')$$, :'e1'), 'No sos miembro');
+select prueba.debe_fallar(format($$select public.guardar_nc('33333333-3333-3333-3333-333333333332', %L, 1, '{"fecha":"2026-11-06","estado":"abierta","desc":"x"}')$$, :'e2'), 'otra empresa');
+do $$ begin
+  assert (public.guardar_nc('44444444-4444-4444-4444-444444444444', (select id from public.empresas), 0,
+    '{"fecha":"2026-11-07","estado":"abierta","desc":"Primera de Dos"}')->'nc'->>'numero') = 'NC-2026-001',
+    'La numeración es por empresa';
+end $$;
+reset role;
+
+-- Admin borra (lápida) y ve la auditoría
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","email":"ana@uno.com"}', false);
+set role authenticated;
+do $$
+declare e uuid := (select id from public.empresas); r jsonb;
+begin
+  r := public.guardar_nc('33333333-3333-3333-3333-333333333332', e, 1, '{"fecha":"2026-11-06","estado":"anulada","desc":"Reclamo"}', true);
+  assert (r->>'ok')::boolean and (r->'nc'->>'borrado')::boolean, 'Coordinación/admin borra una NC (queda lápida)';
+  assert (select count(*) from public.no_conformidades_historial) = 5, 'Auditoría de NC: una fila por versión';
+end $$;
+reset role;

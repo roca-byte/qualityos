@@ -234,6 +234,33 @@ body.en-acceso {
 @media (prefers-reduced-motion: reduce) { .acceso-marca, .acceso-tarjeta, .punto { animation: none; } }
 #imprimir { display: none; }
 
+/* ── No conformidades ── */
+.fila3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 8px; }
+.fila3 > * { min-width: 0; }
+@media (max-width: 520px) { .fila3 { grid-template-columns: 1fr 1fr; } }
+.nc-barra { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 10px; }
+.nc-barra label { flex: 1 1 200px; margin: 0; }
+.nc-barra .btn { flex: 0 0 auto; }
+.nc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.nc-kpis div { border: 1px solid var(--border); border-radius: var(--r); padding: 8px; text-align: center; background: var(--surface); }
+.nc-kpis b { display: block; font-family: var(--mono); font-size: 18px; }
+.nc-kpis span { font-size: 12px; color: var(--muted); }
+.nc-kpis .warn { background: var(--warn-bg); } .nc-kpis .warn b { color: var(--warn); }
+.nc-kpis .nok { background: var(--nok-bg); } .nc-kpis .nok b { color: var(--danger); }
+/* El borde izquierdo de la tarjeta muestra la gravedad; el texto de la derecha, el estado. */
+.nc-item.sev-Leve { border-left-color: var(--green); }
+.nc-item.sev-Moderado { border-left-color: var(--warn); }
+.nc-item.sev-Crítico { border-left-color: var(--danger); }
+.nc-item.nc-anulada { opacity: .6; text-decoration: line-through; }
+.li-estado.nc-abierta, .nc-item.nc-abierta .li-estado { color: var(--danger); }
+.li-estado.nc-en_proceso, .nc-item.nc-en_proceso .li-estado { color: var(--warn); }
+.li-estado.nc-cerrada, .nc-item.nc-cerrada .li-estado { color: var(--green); }
+.nc-lote { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.nc-lote .ayuda { flex-basis: 100%; margin: 0; }
+.fila-tipo { display: grid; grid-template-columns: 1fr 150px auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.fila-tipo > * { min-width: 0; margin: 0; }
+@media (max-width: 520px) { .fila-tipo { grid-template-columns: 1fr 120px auto; } }
+
 /* ── Impresión: solo el informe, A4 apaisado, en blanco y negro legible ── */
 @media print {
   @page { size: A4 landscape; margin: 10mm; }

@@ -16,10 +16,11 @@ ejemplo ("Planta Demo") con datos inventados.
 3. [Control en línea](#3-control-en-línea)
 4. [Control final](#4-control-final)
 5. [Dictamen y registro](#5-dictamen-y-registro)
-6. [Historial](#6-historial)
-7. [Si administrás la empresa](#7-si-administrás-la-empresa)
-8. [Sin señal](#8-sin-señal)
-9. [Preguntas frecuentes](#9-preguntas-frecuentes)
+6. [No conformidades](#6-no-conformidades)
+7. [Historial](#7-historial)
+8. [Si administrás la empresa](#8-si-administrás-la-empresa)
+9. [Sin señal](#9-sin-señal)
+10. [Preguntas frecuentes](#10-preguntas-frecuentes)
 
 ---
 
@@ -107,23 +108,61 @@ Si quedan unidades sin completar lo obligatorio, solo **Coordinación** puede di
 asentado quién lo autorizó). Una vez dictaminado, el lote queda cerrado para el Inspector de
 Calidad; Coordinación puede reabrirlo.
 
-En **Desvíos detectados** ves la lista de NOK del lote; **Copiar para el registro de NC** los
-deja listos para pegar en el
-[registro de No Conformidades](https://github.com/roca-byte/calidad-no-conformidades).
+En **Desvíos detectados** ves la lista de NOK del lote. Desde ahí se crean las
+**no conformidades** (ver el paso 6).
 
 **Imprimir / PDF** arma el registro del lote en una hoja A4. En el diálogo de impresión elegí
 *Guardar como PDF*.
 
 <img src="img/10-registro-pdf.png" alt="Registro del lote para imprimir" width="100%">
 
-## 6. Historial
+## 6. No conformidades
+
+El registro de No Conformidades (NC) se carga **todos los días**, a medida que aparecen, y se
+entrega **por mes**.
+
+**Desde un lote.** En el dictamen, **Crear N NC desde los desvíos** arma una NC por cada control
+con desvío: si el mismo control falló en varias unidades del lote, es **una** NC con todas esas
+unidades. Ya traen la fecha, el lote, el producto, el cliente y dónde se detectó; lo que se
+corrigió en el momento (reprocesado) entra **cerrado**. Después, en el lote ves sus NC.
+
+<img src="img/18-nc-desde-lote.png" alt="Crear NC desde los desvíos del lote" width="300">
+
+**La pestaña NC.** Arriba elegís qué ver: un **mes** (lo que se detectó ese mes) o **Abiertas,
+todos los meses**, para el seguimiento diario. Los indicadores muestran cuántas hay, cuántas
+siguen abiertas, cuántas tienen el **plazo vencido**, cuántas se cerraron en plazo y cuántas son
+críticas. **+ Nueva NC** carga una a mano (un reclamo, un control de ingreso…) con la fecha de hoy.
+
+<img src="img/19-nc-lista.png" alt="NC del mes" width="300"> <img src="img/20-nc-ficha.png" alt="Ficha de una NC" width="300">
+
+**La ficha de la NC.** El **tipo de desvío** completa la gravedad sugerida (se puede cambiar).
+El **plazo** se calcula solo en días hábiles desde la detección; si lo cambiás a mano, se respeta.
+Cargá la acción correctiva y el responsable, y pasala a **En proceso** si corresponde.
+
+- **✓ Cerrar NC**: queda registrado quién la cerró y cuándo. Cualquiera de Calidad puede cerrarla.
+- Después del cierre, la **verificación de eficacia** (ISO 9001, 10.2): Eficaz o No eficaz.
+- **Anular**: para una NC cargada por error. Queda en el registro como anulada y no cuenta en
+  los indicadores.
+
+El **número** (NC-2026-001, NC-2026-002…) lo pone el servidor cuando la NC se sube: así dos
+equipos sin señal no repiten número. Mientras tanto la NC dice *NC nueva*.
+
+**Imprimir registro / PDF** arma el registro del mes elegido en A4 apaisado: la planilla de NC
+con sus indicadores, las acciones con cierre y eficacia, y el espacio para las firmas.
+
+**¿Usabas la app individual?** Si llevabas el registro en la app
+[Registro de No Conformidades](https://github.com/roca-byte/calidad-no-conformidades), descargá
+su respaldo (💾 Exportar backup) y acá tocá **Importar del registro individual**: trae las NC sin
+repetirlas.
+
+## 7. Historial
 
 En **Historial** están los lotes dictaminados que tiene el equipo. **Buscar en todo el
 historial** busca por lote, producto o cliente en el servidor (hace falta señal).
 
 <img src="img/11-historial.png" alt="Historial de lotes" width="300">
 
-## 7. Si administrás la empresa
+## 8. Si administrás la empresa
 
 Tu bienvenida tiene otros pasos: configurar y armar el equipo.
 
@@ -133,6 +172,9 @@ En **⚙**:
 
 - **Empresa**: nombre y líneas.
 - **Plantillas de control**: qué se controla en cada lote (ver abajo).
+- **No conformidades**: el código y la versión del registro de NC, el plazo en días hábiles y la
+  lista de **tipos de desvío** con su gravedad sugerida. Si un tipo se llama igual que un control
+  de la plantilla (por ejemplo «Inducción débil»), las NC creadas desde un lote lo toman solas.
 - **Personas**: invitá por email con su rol, cambiá roles o desactivá a alguien que ya no
   trabaja. La persona invitada crea su cuenta con ese email (paso 1) y queda adentro.
 
@@ -179,11 +221,11 @@ norma (ISO 9001, 7.5): **código** (por ejemplo REG-01, obligatorio y sin repeti
 
 | Rol | Puede |
 |---|---|
-| **Inspector de Calidad** | Crear y controlar lotes. Dictaminar con el control final completo |
+| **Inspector de Calidad** | Crear y controlar lotes. Dictaminar con el control final completo. Cargar, cerrar y anular NC |
 | **Coordinación** | Además: dictaminar con unidades pendientes, reabrir o corregir lotes dictaminados, borrar lotes |
 | **Administración** | Además: configurar la empresa y las plantillas e invitar personas |
 
-## 8. Sin señal
+## 9. Sin señal
 
 QualityOS está hecha para la planta: **todo se guarda primero en el equipo** y se sube solo
 cuando hay conexión. Arriba a la derecha ves el estado:
@@ -193,9 +235,9 @@ cuando hay conexión. Arriba a la derecha ves el estado:
 | ☁ **Al día** | Todo lo cargado ya está en el servidor |
 | ⏳ **N por subir** | Hay cambios guardados en el equipo esperando subir |
 | ✈ **Sin señal** | Seguí trabajando normal: se sube cuando vuelva la conexión |
-| ⚠ **Conflicto** | Otro equipo cambió el mismo lote. Tocalo y elegí qué versión queda: nada se pierde |
+| ⚠ **Conflicto** | Otro equipo cambió el mismo lote o la misma NC. Tocalo y elegí qué versión queda: nada se pierde |
 
-## 9. Preguntas frecuentes
+## 10. Preguntas frecuentes
 
 **Creé la cuenta pero dice que no pertenezco a ninguna empresa.**
 Pedile al administrador que te invite con **el mismo email** con el que creaste la cuenta.

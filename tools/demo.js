@@ -137,6 +137,23 @@ function sembrarLotes() {
   await page.waitForSelector('.dict-final');
   await foto(page, '09-dictaminado', 'section:has(.dict-final)');
 
+  // No conformidades: se crean desde los desvíos del lote recién dictaminado.
+  await page.click('summary:has-text("Desvíos detectados")');
+  await foto(page, '18-nc-desde-lote', 'section:has(.nc-lote)');
+  await page.click(boton('desde los desvíos'));
+  await page.waitForFunction(() => Store.pendientes().length === 0, null, { timeout: 15000 });   // el servidor las numera
+  await page.click('[data-act=inicio]');
+  await page.click('button[data-tab="nc"]');
+  await page.waitForSelector('.nc-item >> text=NC-2026-001');
+  await foto(page, '19-nc-lista');
+  await page.click('.nc-item:has-text("Peso por pico")');
+  await page.selectOption('[name="tipo"]', { index: 2 });
+  await page.fill('[name="ac"]', 'Se recalibró el pico 2 y se re-pesó el pallet');
+  await page.fill('[name="resp"]', 'Laura Gómez');
+  await foto(page, '20-nc-ficha', 'section:has([data-form=nc])');
+  await page.click('button[type=submit]:has-text("Guardar")');
+  await page.goto(url);
+
   await page.click(boton('Imprimir / PDF')).catch(() => {});
   await page.evaluate(() => {
     const l = Store.lotes().find(x => x.datos.cab.lote === 'L-2611-014');

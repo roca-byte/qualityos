@@ -158,5 +158,55 @@ var Imprimir = (function () {
     document.title = 'QualityOS';
   }
 
-  return { esc: esc, html: html, lote: lote };
+  // ── Registro de No Conformidades (un mes, o las abiertas) ──
+  // lista: [{ numero, datos }] ya filtrada y ordenada. titulo: "Noviembre 2026" o "NC abiertas al …".
+  // Dos partes como el registro en papel: la planilla de NC y las acciones con su cierre y eficacia.
+  function htmlRegistroNc(lista, titulo, config, empresa) {
+    var k = Reglas.kpisNc(lista.map(function (n) { return n.datos; }));
+    var est = function (d) { return Reglas.NC_ESTADOS[d.estado] || d.estado; };
+    var cant = function (d) { return d.cantNC ? esc(d.cantNC) + (d.cantTot ? ' / ' + esc(d.cantTot) : '') + (d.unidadCant ? ' ' + esc(d.unidadCant) : '') : '—'; };
+    var vacio = '<tr><td colspan="9" style="text-align:center">Sin NC en este período</td></tr>';
+    var filas = lista.map(function (n) {
+      var d = n.datos;
+      return '<tr class="' + (d.estado === 'anulada' ? 'i-vacio' : d.sev === 'Crítico' ? 'i-nok' : '') + '">' +
+        '<td>' + esc(n.numero || 'sin número') + '</td><td>' + esc(Reglas.fechaLarga(d.fecha)) + '</td>' +
+        '<td>' + esc(d.lote || '—') + (d.prod ? '<br><small>' + esc(d.prod) + '</small>' : '') + '</td>' +
+        '<td>' + esc(d.deteccion || '—') + '</td><td>' + esc(d.tipo || '—') + '</td><td>' + esc(d.sev || '—') + '</td>' +
+        '<td>' + esc(d.desc) + '</td><td>' + cant(d) + '</td><td>' + esc(est(d)) + '</td></tr>';
+    }).join('') || vacio;
+    var acciones = lista.filter(function (n) { return n.datos.estado !== 'anulada'; }).map(function (n) {
+      var d = n.datos;
+      return '<tr><td>' + esc(n.numero || 'sin número') + '</td><td>' + esc(d.ac || '—') + '</td><td>' + esc(d.resp || '—') + '</td>' +
+        '<td>' + esc(Reglas.fechaLarga(d.plazo) || '—') + '</td><td>' + esc(Reglas.fechaLarga(d.cierre) || '—') + '</td>' +
+        '<td>' + esc(est(d)) + (d.cerradaPor ? '<br><small>' + esc(d.cerradaPor) + '</small>' : '') + '</td>' +
+        '<td>' + esc(Reglas.EFICACIA[d.eficacia] || '—') + '</td></tr>';
+    }).join('') || vacio;
+    return '<div class="informe">' +
+      '<table class="i-cab"><tr><td class="i-empresa">' + esc(empresa) + '</td>' +
+      '<td class="i-titulo">Registro de No Conformidades<br><small>' + esc(titulo) + '</small></td>' +
+      '<td class="i-doc">Código: ' + esc(config.ncCodigo || '—') + '<br>Versión: ' + esc(config.ncVersion || '—') + '</td></tr></table>' +
+      '<p class="i-resumen">NC: <b>' + k.total + '</b> · Abiertas: <b>' + k.abiertas + '</b>' +
+      (k.vencidas ? ' · Con plazo vencido: <b>' + k.vencidas + '</b>' : '') +
+      ' · Leve ' + k.sev.Leve + ' · Moderado ' + k.sev.Moderado + ' · Crítico ' + k.sev['Crítico'] +
+      (k.masFrecuente ? ' · Más frecuente: <b>' + esc(k.masFrecuente.tipo) + '</b> (' + k.masFrecuente.pct + ' %)' : '') +
+      (k.enPlazo !== null ? ' · Cerradas en plazo: <b>' + k.enPlazo + ' %</b>' : '') +
+      (k.tasa !== null ? ' · Cantidad no conforme: <b>' + k.tasa + ' %</b>' : '') + '</p>' +
+      '<table class="i-tabla i-chica"><thead><tr><th>N°</th><th>Fecha</th><th>Lote / producto</th><th>Detección</th><th>Tipo de desvío</th>' +
+      '<th>Gravedad</th><th>Descripción</th><th>Cantidad NC / total</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>' +
+      '<h3>Acciones, cierre y verificación de eficacia (ISO 9001, 10.2)</h3>' +
+      '<table class="i-tabla i-chica"><thead><tr><th>N°</th><th>Acción correctiva / disposición</th><th>Responsable</th><th>Plazo</th>' +
+      '<th>Cierre</th><th>Estado</th><th>Eficacia</th></tr></thead><tbody>' + acciones + '</tbody></table>' +
+      '<table class="i-tabla i-firma"><tr><th>Inspector de Calidad</th><td></td><th>Coordinación de Calidad</th><td></td>' +
+      '<th>Revisión SGC / Gerencia</th><td></td></tr></table>' +
+      '<div class="i-pie">QualityOS · ' + esc(empresa) + '</div></div>';
+  }
+
+  function registroNc(lista, titulo, config, empresa) {
+    document.getElementById('imprimir').innerHTML = htmlRegistroNc(lista, titulo, config, empresa);
+    document.title = 'Registro de NC - ' + titulo;
+    window.print();
+    document.title = 'QualityOS';
+  }
+
+  return { esc: esc, html: html, lote: lote, htmlRegistroNc: htmlRegistroNc, registroNc: registroNc };
 })();

@@ -65,6 +65,8 @@ var Demo = (function () {
       function ejecutar() {
         if (sinRed()) return err('Failed to fetch');
         var db = leer();
+        // Una base guardada antes de que existieran las NC no tiene esa tabla.
+        if (!db[tabla]) db[tabla] = [];
         var filas = db[tabla].filter(function (f) { return filtros.every(function (fn) { return fn(f); }); });
         if (op === 'update') { filas.forEach(function (f) { Object.assign(f, valores); }); guardar(db); return ok(null); }
         if (op === 'delete') { db[tabla] = db[tabla].filter(function (f) { return filas.indexOf(f) < 0; }); guardar(db); return ok(null); }
@@ -115,6 +117,25 @@ var Demo = (function () {
         var nuevo = { id: a.p_id, empresa_id: a.p_empresa, datos: a.p_datos, version: 1, borrado: !!a.p_borrar, modificado: ahora };
         db.lotes.push(nuevo);
         return { ok: true, lote: nuevo };
+      },
+      // Igual que guardar_nc de la base: valida lo mismo (Reglas.validarNc) y numera por empresa y año.
+      guardar_nc: function (db, s, a) {
+        db.no_conformidades = db.no_conformidades || [];
+        var problema = R.validarNc(a.p_datos);
+        if (problema) throw new Error(problema);
+        var actual = db.no_conformidades.filter(function (n) { return n.id === a.p_id; })[0];
+        var ahora = new Date(Date.now() + db.no_conformidades.length).toISOString();
+        var columnas = { fecha: a.p_datos.fecha, estado: a.p_datos.estado, tipo: a.p_datos.tipo || '', lote: a.p_datos.lote || '' };
+        if (actual) {
+          if (actual.version !== a.p_version_base) return { ok: false, conflicto: true, nc: actual };
+          Object.assign(actual, columnas, { datos: a.p_datos, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
+          return { ok: true, nc: actual };
+        }
+        if (a.p_version_base !== 0) return { ok: false, conflicto: true, nc: null };
+        var nueva = Object.assign({ id: a.p_id, empresa_id: a.p_empresa, numero: siguienteNumero(db.no_conformidades, a.p_empresa, a.p_datos.fecha),
+          datos: a.p_datos, version: 1, borrado: !!a.p_borrar, modificado: ahora }, columnas);
+        db.no_conformidades.push(nueva);
+        return { ok: true, nc: nueva };
       }
     };
 
@@ -155,7 +176,15 @@ var Demo = (function () {
   }
 
   function vacio() {
-    return { usuarios: {}, plataforma: [], confirmarEmail: false, empresas: [], miembros: [], invitaciones: [], lotes: [] };
+    return { usuarios: {}, plataforma: [], confirmarEmail: false, empresas: [], miembros: [], invitaciones: [], lotes: [], no_conformidades: [] };
+  }
+
+  // NC-AAAA-NNN: el siguiente número de esa empresa en el año de la fecha (como guardar_nc).
+  function siguienteNumero(ncs, empresaId, fecha) {
+    var anio = String(fecha).slice(0, 4);
+    var max = ncs.filter(function (n) { return n.empresa_id === empresaId && n.numero.indexOf('NC-' + anio + '-') === 0; })
+      .reduce(function (m, n) { return Math.max(m, Number(n.numero.split('-')[2])); }, 0);
+    return 'NC-' + anio + '-' + String(max + 1).padStart(3, '0');
   }
 
   // ── Datos de ejemplo (ficticios) ──
@@ -176,6 +205,13 @@ var Demo = (function () {
         historial: [{ version: '01', fecha: '2026-10-01', por: 'Laura Gómez', cambio: 'Creación del registro' }] })
     ],
     lineas: ['Env-01', 'Env-02', 'Env-04'],
+    tiposNc: [
+      { nombre: 'Inducción débil', sev: 'Crítico' }, { nombre: 'Peso / volumen fuera de rango', sev: 'Leve' },
+      { nombre: 'Sellado deficiente', sev: 'Crítico' }, { nombre: 'Trazabilidad / QR', sev: 'Crítico' },
+      { nombre: 'Rotulado incorrecto', sev: 'Moderado' }, { nombre: 'Envase dañado', sev: 'Moderado' },
+      { nombre: 'Materia prima no conforme', sev: 'Crítico' }
+    ],
+    ncCodigo: 'REG-NC', ncVersion: '02',
     docCodigo: 'REG-01', docVersion: '03', docElab: 'Laura Gómez', docAprob: 'Coordinación de Calidad'
   };
 
@@ -232,6 +268,41 @@ var Demo = (function () {
     });
   }
 
+  // NC de ejemplo: tres que salieron de los lotes de ejemplo (una en proceso, una abierta y una
+  // corregida en el momento) y dos del mes pasado (una cerrada y verificada, otra todavía abierta
+  // y con el plazo vencido), para que se vean la vista por mes, las abiertas y los indicadores.
+  function ncsEjemplo(empresaId, lotes) {
+    var hoy = new Date();
+    var dia = function (n) { return R.hoy(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n)); };
+    var mesPasado = function (d) { return R.hoy(new Date(hoy.getFullYear(), hoy.getMonth() - 1, d)); };
+    var deLote = function (i) { var c = lotes[i].datos.cab; return { loteId: lotes[i].id, lote: c.lote, prod: c.prod, cliente: c.cliente, fecha: c.fecha }; };
+    var datos = [
+      R.nuevaNc(Object.assign(deLote(4), { deteccion: 'Control final', tipo: 'Inducción débil', sev: 'Crítico',
+        desc: 'Inducción 0,7 en línea y sello flojo en los 2 pallets del control final', cantNC: '2000', cantTot: '2000', unidadCant: 'L',
+        ac: 'Lote retenido. Reinducción del 100 % y ajuste de la potencia de la inductora', resp: 'Pablo Díaz', estado: 'en_proceso', creadaPor: 'Pablo Díaz' })),
+      R.nuevaNc(Object.assign(deLote(3), { deteccion: 'Control final', tipo: 'Trazabilidad / QR', sev: 'Crítico',
+        desc: 'QR ilegible en el pallet 3', cantNC: '1000', cantTot: '4000', unidadCant: 'L', resp: 'Laura Gómez', creadaPor: 'Laura Gómez' })),
+      R.nuevaNc(Object.assign(deLote(1), { deteccion: 'Control en línea', tipo: 'Sellado deficiente', sev: 'Crítico',
+        desc: 'Sellado · Pallet 2: NOK', estado: 'cerrada', cierre: deLote(1).fecha, ac: 'Corregido en el momento (reproceso)', creadaPor: 'Laura Gómez' })),
+      R.nuevaNc({ fecha: mesPasado(12), deteccion: 'Reclamo de cliente', lote: 'L-2610-022', prod: 'Aceite girasol 1,5 L', cliente: 'Almacén Central',
+        tipo: 'Envase dañado', sev: 'Moderado', desc: 'El cliente recibió 30 botellas abolladas', cantNC: '45', cantTot: '6000', unidadCant: 'L',
+        ac: 'Se reforzó el film y se cambió el esquinero del pallet', resp: 'Pablo Díaz', estado: 'cerrada', cierre: mesPasado(15),
+        eficacia: 'eficaz', cerradaPor: 'Pablo Díaz', creadaPor: 'Pablo Díaz' }),
+      R.nuevaNc({ fecha: mesPasado(20), deteccion: 'Control de ingreso', tipo: 'Materia prima no conforme', sev: 'Crítico',
+        desc: 'Tapas del proveedor con rosca deformada (lote de tapas T-118)', ac: 'Devolución al proveedor y pedido de acción correctiva',
+        resp: 'Laura Gómez', creadaPor: 'Laura Gómez' })
+    ];
+    var filas = [];
+    // Se numeran en el orden en que se habrían cargado (por fecha), como en la base.
+    datos.sort(function (x, y) { return x.fecha < y.fecha ? -1 : 1; }).forEach(function (d, i) {
+      d.plazo = d.plazo || ''; d.plazoAuto = d.plazoAuto || '';
+      filas.push({ id: '00000000-0000-4000-9000-00000000000' + i, empresa_id: empresaId, numero: siguienteNumero(filas, empresaId, d.fecha),
+        fecha: d.fecha, estado: d.estado, tipo: d.tipo, lote: d.lote, datos: d, version: 1, borrado: false,
+        modificado: new Date(Date.now() - i * 60000).toISOString() });
+    });
+    return filas;
+  }
+
   // Deja la demo como nueva: cada visitante arranca con los mismos datos.
   function reiniciar() {
     var db = vacio();
@@ -244,13 +315,14 @@ var Demo = (function () {
     );
     db.invitaciones.push({ empresa_id: EMPRESA, email: 'turno.noche@plantademo.com', rol: 'checker' });
     db.lotes = lotesEjemplo(EMPRESA);
+    db.no_conformidades = ncsEjemplo(EMPRESA, db.lotes);
     localStorage.setItem(CLAVE_DEMO, JSON.stringify(db));
     localStorage.removeItem(CLAVE_DEMO + '.sesion');
   }
 
   return {
     CLAVE_DEMO: CLAVE_DEMO, EMAIL: EMAIL, CLAVE: CLAVE, EMPRESA: EMPRESA,
-    cliente: cliente, reiniciar: reiniciar, lotesEjemplo: lotesEjemplo, CONFIG_EJEMPLO: CONFIG_EJEMPLO
+    cliente: cliente, reiniciar: reiniciar, lotesEjemplo: lotesEjemplo, ncsEjemplo: ncsEjemplo, CONFIG_EJEMPLO: CONFIG_EJEMPLO
   };
 })();
 
