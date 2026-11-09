@@ -12,6 +12,7 @@
  *     <empresaId>: {
  *       lotes: { <id>: { datos, version, modificado, borrado, pendiente, cambios, borrar } },
  *       ncs:   { <id>: lo mismo + numero (lo pone el servidor: NC-2026-001) },
+ *       (lotes y NC llevan además "firma": la firma electrónica vigente, o null)
  *       ultimaBajada: '<fecha del servidor>' | null,      // de lotes
  *       ultimaBajadaNc: '<fecha del servidor>' | null,    // de no conformidades
  *       conflictos: [{ tipo: 'lote' | 'nc', id, datos, cuando }]
@@ -92,7 +93,8 @@ var Store = (function () {
   }
 
   function conId(id, reg) {
-    return { id: id, datos: reg.datos, version: reg.version, modificado: reg.modificado, pendiente: reg.pendiente, numero: reg.numero || '' };
+    return { id: id, datos: reg.datos, version: reg.version, modificado: reg.modificado, pendiente: reg.pendiente, numero: reg.numero || '',
+      firma: reg.firma || null };
   }
 
   function uno(tipo, id) {
@@ -164,6 +166,8 @@ var Store = (function () {
     if (!reg) return;
     reg.version = fila.version;
     if (fila.numero && tipo === 'nc') reg.numero = fila.numero;
+    // Al subir un cambio, el servidor devuelve la firma vigente (null si lo firmado cambió).
+    if (fila.firma !== undefined) reg.firma = fila.firma;
     reg.modificado = fila.modificado;
     reg.borrado = fila.borrado;
     // Si el usuario siguió editando mientras se subía, queda pendiente
@@ -182,7 +186,7 @@ var Store = (function () {
     if (reg) e.conflictos.push({ tipo: tipo || 'lote', id: id, datos: reg.datos, numero: reg.numero || '', cuando: new Date().toISOString() });
     if (filaServidor && !filaServidor.borrado) {
       ls[id] = { datos: filaServidor.datos, version: filaServidor.version, modificado: filaServidor.modificado,
-        numero: filaServidor.numero, borrado: false, pendiente: false, cambios: 0 };
+        numero: filaServidor.numero, firma: filaServidor.firma || null, borrado: false, pendiente: false, cambios: 0 };
     } else {
       delete ls[id];
     }
@@ -219,7 +223,7 @@ var Store = (function () {
     if (reg && reg.version >= fila.version) return;
     if (fila.borrado) delete ls[fila.id];
     else ls[fila.id] = { datos: fila.datos, version: fila.version, modificado: fila.modificado, numero: fila.numero,
-      borrado: false, pendiente: false, cambios: 0 };
+      firma: fila.firma || null, borrado: false, pendiente: false, cambios: 0 };
   }
 
   function ultimaBajada(tipo) { return tipo === 'nc' ? empresa().ultimaBajadaNc : empresa().ultimaBajada; }

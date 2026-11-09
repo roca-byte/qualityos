@@ -111,7 +111,9 @@ var Demo = (function () {
         var ahora = new Date(Date.now() + db.lotes.length).toISOString();
         if (actual) {
           if (actual.version !== a.p_version_base) return { ok: false, conflicto: true, lote: actual };
-          Object.assign(actual, { datos: a.p_datos, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
+          // Como la base: si cambia lo firmado, la firma vigente se borra.
+          var firmaLote = JSON.stringify(actual.datos) === JSON.stringify(a.p_datos) ? actual.firma || null : null;
+          Object.assign(actual, { datos: a.p_datos, firma: firmaLote, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
           return { ok: true, lote: actual };
         }
         var nuevo = { id: a.p_id, empresa_id: a.p_empresa, datos: a.p_datos, version: 1, borrado: !!a.p_borrar, modificado: ahora };
@@ -128,7 +130,8 @@ var Demo = (function () {
         var columnas = { fecha: a.p_datos.fecha, estado: a.p_datos.estado, tipo: a.p_datos.tipo || '', lote: a.p_datos.lote || '' };
         if (actual) {
           if (actual.version !== a.p_version_base) return { ok: false, conflicto: true, nc: actual };
-          Object.assign(actual, columnas, { datos: a.p_datos, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
+          var firmaNc = JSON.stringify(sinEficacia(actual.datos)) === JSON.stringify(sinEficacia(a.p_datos)) ? actual.firma || null : null;
+          Object.assign(actual, columnas, { datos: a.p_datos, firma: firmaNc, version: actual.version + 1, modificado: ahora, borrado: a.p_borrar || actual.borrado });
           return { ok: true, nc: actual };
         }
         if (a.p_version_base !== 0) return { ok: false, conflicto: true, nc: null };
@@ -136,6 +139,27 @@ var Demo = (function () {
           datos: a.p_datos, version: 1, borrado: !!a.p_borrar, modificado: ahora }, columnas);
         db.no_conformidades.push(nueva);
         return { ok: true, nc: nueva };
+      },
+      // Igual que firmar() de la base: verifica la clave del usuario y guarda la firma vigente.
+      // La huella acá no es SHA-256 (sería asíncrono): es una de mentira, solo para la demo.
+      firmar: function (db, s, a) {
+        var u = Object.keys(db.usuarios).map(function (k) { return db.usuarios[k]; }).filter(function (x) { return x.id === s.user.id; })[0];
+        if (!u || u.clave !== a.p_clave) return { ok: false, error: 'Clave incorrecta.' };
+        var tabla = a.p_tipo === 'nc' ? (db.no_conformidades = db.no_conformidades || []) : db.lotes;
+        var fila = tabla.filter(function (x) { return x.id === a.p_id && !x.borrado; })[0];
+        if (!fila) throw new Error(a.p_tipo === 'nc' ? 'La NC no existe' : 'El lote no existe');
+        if (a.p_tipo === 'nc' ? fila.datos.estado !== 'cerrada' : fila.datos.estado === 'activo') {
+          throw new Error(a.p_tipo === 'nc' ? 'Solo se firma una NC cerrada' : 'Solo se firma un lote dictaminado');
+        }
+        if (fila.version !== a.p_version) throw new Error('Cambió mientras lo mirabas: sincronizá y volvé a firmar');
+        var m = db.miembros.filter(function (x) { return x.empresa_id === a.p_empresa && x.user_id === s.user.id; })[0] || {};
+        var hash = huellaDemo(JSON.stringify(a.p_tipo === 'nc' ? sinEficacia(fila.datos) : fila.datos));
+        fila.firma = { nombre: m.nombre || u.email, rol: m.rol, hash: hash, codigo: (hash.slice(0, 4) + '-' + hash.slice(4, 8)).toUpperCase(),
+          significado: a.p_tipo === 'nc' ? 'Cierre de la NC ' + fila.numero : 'Dictamen: ' + String(fila.datos.final.dictamen).replace('_', ' '),
+          cuando: new Date().toISOString() };
+        fila.version += 1;
+        fila.modificado = new Date(Date.now() + tabla.length).toISOString();
+        return { ok: true, fila: fila };
       }
     };
 
@@ -173,6 +197,17 @@ var Demo = (function () {
         return ok(r);
       }
     };
+  }
+
+  function sinEficacia(d) { var c = Object.assign({}, d); delete c.eficacia; return c; }
+  // Huella de 16 caracteres hex (FNV-1a de 32 bits, dos pasadas). No es criptográfica: es para la demo.
+  function huellaDemo(txt) {
+    var h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (var i = 0; i < txt.length; i++) {
+      h1 = Math.imul(h1 ^ txt.charCodeAt(i), 16777619) >>> 0;
+      h2 = Math.imul(h2 ^ txt.charCodeAt(txt.length - 1 - i), 16777619) >>> 0;
+    }
+    return ('0000000' + h1.toString(16)).slice(-8) + ('0000000' + h2.toString(16)).slice(-8);
   }
 
   function vacio() {
@@ -275,9 +310,20 @@ var Demo = (function () {
         'retenido', 'RETENIDO', [pl(1, { ind: ['0.7'] })], [[mas(cfOk, { indF: false })], [mas(cfOk, { indF: false })]], 'Pablo Díaz')
     ];
     return datos.map(function (d, i) {
-      return { id: '00000000-0000-4000-8000-00000000000' + i, empresa_id: empresaId, datos: d, version: 1,
-        borrado: false, modificado: new Date(Date.now() - i * 60000).toISOString() };
+      // Firmas de ejemplo: los dictaminados están firmados, salvo el aprobado parcial (pendiente).
+      var firma = d.estado !== 'activo' && d.estado !== 'aprobado_parcial' ? firmaEjemplo(d) : null;
+      return { id: '00000000-0000-4000-8000-00000000000' + i, empresa_id: empresaId, datos: d, version: firma ? 2 : 1,
+        firma: firma, borrado: false, modificado: new Date(Date.now() - i * 60000).toISOString() };
     });
+  }
+
+  function firmaEjemplo(d) {
+    var hash = huellaDemo(JSON.stringify(d));
+    var coord = d.final.dictaminadoPor === 'Pablo Díaz';
+    var p = String(d.cab.fecha).split('-').map(Number);
+    return { nombre: d.final.dictaminadoPor, rol: coord ? 'coordinacion' : 'checker', hash: hash,
+      codigo: (hash.slice(0, 4) + '-' + hash.slice(4, 8)).toUpperCase(),
+      significado: 'Dictamen: ' + d.final.dictamen.replace('_', ' '), cuando: new Date(p[0], p[1] - 1, p[2], 15, 45).toISOString() };
   }
 
   // NC de ejemplo: tres que salieron de los lotes de ejemplo (una en proceso, una abierta y una
@@ -308,8 +354,14 @@ var Demo = (function () {
     // Se numeran en el orden en que se habrían cargado (por fecha), como en la base.
     datos.sort(function (x, y) { return x.fecha < y.fecha ? -1 : 1; }).forEach(function (d, i) {
       d.plazo = d.plazo || ''; d.plazoAuto = d.plazoAuto || '';
-      filas.push({ id: '00000000-0000-4000-9000-00000000000' + i, empresa_id: empresaId, numero: siguienteNumero(filas, empresaId, d.fecha),
-        fecha: d.fecha, estado: d.estado, tipo: d.tipo, lote: d.lote, datos: d, version: 1, borrado: false,
+      var numero = siguienteNumero(filas, empresaId, d.fecha);
+      // La del reclamo (cerrada por Coordinación) está firmada; la corregida en el momento, pendiente.
+      var hash = huellaDemo(JSON.stringify(sinEficacia(d)));
+      var firma = d.estado === 'cerrada' && d.cerradaPor ? { nombre: d.cerradaPor, rol: 'coordinacion', hash: hash,
+        codigo: (hash.slice(0, 4) + '-' + hash.slice(4, 8)).toUpperCase(), significado: 'Cierre de la NC ' + numero,
+        cuando: new Date(d.cierre + 'T16:10:00').toISOString() } : null;
+      filas.push({ id: '00000000-0000-4000-9000-00000000000' + i, empresa_id: empresaId, numero: numero,
+        fecha: d.fecha, estado: d.estado, tipo: d.tipo, lote: d.lote, datos: d, version: firma ? 2 : 1, firma: firma, borrado: false,
         modificado: new Date(Date.now() - i * 60000).toISOString() });
     });
     return filas;

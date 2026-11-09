@@ -234,6 +234,11 @@ body.en-acceso {
 @media (prefers-reduced-motion: reduce) { .acceso-marca, .acceso-tarjeta, .punto { animation: none; } }
 #imprimir { display: none; }
 
+/* ── Firma electrónica ── */
+.firma { margin: 10px 0; padding: 10px; border-radius: var(--r); border: 1px solid var(--border); background: var(--surface2); }
+.firma-ok { margin: 0; color: var(--green); font-weight: 600; }
+.firma-pend { margin: 0 0 6px; color: var(--warn); }
+
 /* ── Control por horario ── */
 .prox-control { margin: 0 0 10px; padding: 8px 10px; border-radius: var(--r); background: var(--surface2); border: 1px solid var(--border); }
 

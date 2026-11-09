@@ -43,14 +43,19 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
     "Próximo control: 12:10" y "⏰ Control atrasado" en el lote y su tarjeta. Sin notificaciones
     con la app cerrada (eso queda para después, si se pide).
 
+- **Firma electrónica** (09/11/2026) — terminada. Se firma el dictamen del lote y el cierre de la
+  NC, con la clave en cada firma; sin señal queda "pendiente de firma". Migración 0006. Ver
+  "Firma electrónica" en `docs/DISENO.md`. Firma digital con certificado: fuera de alcance.
+
 ## Próximo
 
-1. **Firma.** Averiguar qué exige la norma para firmar registros (ISO 9001: identificar quién
-   aprueba y cuándo; en farma/alimentos con requisitos más fuertes, firma electrónica con
-   validación, tipo 21 CFR Part 11 / ANMAT) y qué se puede hacer: hoy queda registrado quién
-   dictaminó, con qué rol y cuándo, más la auditoría de cada versión del lote. Evaluar:
-   reingresar la clave al dictaminar, firma dibujada, "firma" con sello de tiempo e
-   inalterabilidad (hash) en el PDF.
+1. **Conexión con ERPs (ISIS, SAP)** — investigada el 09/11/2026, **el usuario pidió no hacer nada
+   todavía**. Resumen: ISIS tiene API REST (X-Api-Key; artículos, clientes, stock, remitos con
+   trazabilidad de lote, y `ISIS_ProcesarStock` para mover un lote a un depósito de retenidos);
+   SAP Business One por Service Layer (estado del lote: liberado / bloqueado); S/4HANA con su
+   propio QM (API_INSPECTIONLOT_SRV). Siempre desde un servidor (Edge Function o agente en la
+   planta), nunca desde la tablet. Etapas propuestas: A webhook + exportar, B leer artículos y
+   clientes, C dictamen → bloquear/liberar en el ERP, D trazabilidad del lote en reclamos.
 
 ## Mucho más adelante (opcional, más grande)
 

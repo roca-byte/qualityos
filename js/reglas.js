@@ -388,6 +388,28 @@ var Reglas = (function () {
     return !!(p && p.cuando && (ahora || new Date()) > p.cuando);
   }
 
+  // ───────────────────── Firma electrónica ─────────────────────
+  // La firma la hace y la guarda el servidor (firmar(), migración 0006): acá solo se muestra y
+  // se decide qué está pendiente. Se firma el dictamen del lote y el cierre de la NC.
+  var ROL_TXT = { checker: 'Inspector de Calidad', coordinacion: 'Coordinación', admin: 'Administración' };
+
+  // ISO del servidor → "09/11/2026 10:32" (hora local).
+  function fechaHora(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return fechaLarga(hoy(d)) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function textoFirma(f) {
+    if (!f) return '';
+    return 'Firmado electrónicamente por ' + f.nombre + ' (' + (ROL_TXT[f.rol] || f.rol) + ') · ' + fechaHora(f.cuando) +
+      ' · ' + f.significado + ' · Código de verificación ' + f.codigo;
+  }
+  // ¿Corresponde firmar y todavía no está firmado?
+  function pendienteDeFirma(tipo, datos, firma) {
+    if (firma) return false;
+    return tipo === 'nc' ? datos.estado === 'cerrada' : datos.estado !== 'activo';
+  }
+
   // ───────────────────── Catálogo de productos ─────────────────────
   // Optativo (empresas.config.productos). Cada producto dice con qué plantilla se controla y
   // trae lo que hoy se tipea en cada lote: rangos de las mediciones "por lote", cantidad por
@@ -755,6 +777,7 @@ var Reglas = (function () {
   return {
     TIPOS: TIPOS, EJEMPLOS: EJEMPLOS, TIPOS_DATO: TIPOS_DATO,
     datosLote: datosLote, datosFaltantes: datosFaltantes, textoDatos: textoDatos,
+    ROL_TXT: ROL_TXT, fechaHora: fechaHora, textoFirma: textoFirma, pendienteDeFirma: pendienteDeFirma,
     frecuencia: frecuencia, textoFrecuencia: textoFrecuencia, proximoControl: proximoControl, controlAtrasado: controlAtrasado,
     productos: productos, buscarProducto: buscarProducto, itemsConRango: itemsConRango, valoresDeProducto: valoresDeProducto,
     productoDesdeLote: productoDesdeLote, validarProducto: validarProducto,

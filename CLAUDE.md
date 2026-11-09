@@ -21,6 +21,8 @@ Orden de carga: `vendor/supabase.js → config → reglas → store → demo →
 ## Reglas
 - El rol visible es **Inspector de Calidad** (nunca "Checker"). En la base y en los datos
   sigue llamándose `checker`: no renombrarlo sin migración.
+- Firma electrónica: la hace SOLO el servidor (`firmar()`, migración 0006); la app no puede
+  escribir una firma. Si cambia lo firmado, la firma vigente se borra.
 - No conformidades: mismo esquema que los lotes (ver "No conformidades" en `docs/DISENO.md`).
   Cualquiera de Calidad las cierra; borrar es de coordinación (lo normal es anular).
 - Nada de controles fijos en el código: todo sale de la plantilla que el lote guarda en
@@ -54,6 +56,7 @@ node tests/e2e/plantillas.js      # armar una plantilla propia y usarla en un lo
 node tests/e2e/nc.js [carpeta]    # no conformidades: desde el lote, cierre, sin señal, importar, imprimir
 node tests/e2e/productos.js       # catálogo: lote desde producto, guardar como producto, ⚙ Productos
 node tests/e2e/horario.js         # control por horario: próximo control, atrasado, editor
+node tests/e2e/firma.js           # firma del dictamen y del cierre de NC: clave, reabrir, sin señal
 ```
 
 ## Guía y demo

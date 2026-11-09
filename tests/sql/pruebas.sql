@@ -294,3 +294,96 @@ begin
   assert (select count(*) from public.no_conformidades_historial) = 5, 'Auditoría de NC: una fila por versión';
 end $$;
 reset role;
+
+-- ── Firma electrónica (migración 0006) ──
+-- Claves de prueba (en Supabase las guarda Auth con bcrypt, igual que acá).
+update auth.users set encrypted_password = extensions.crypt('clave-beto', extensions.gen_salt('bf'))
+ where id = '00000000-0000-0000-0000-00000000000b';
+update auth.users set encrypted_password = extensions.crypt('clave-ana', extensions.gen_salt('bf'))
+ where id = '00000000-0000-0000-0000-00000000000a';
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","email":"beto@uno.com"}', false);
+set role authenticated;
+do $$
+declare e uuid := (select id from public.empresas); r jsonb; v int;
+begin
+  -- Un lote dictaminado (el J-1 de las pruebas de plantillas)
+  v := (select version from public.lotes where id = '22222222-2222-2222-2222-222222222222');
+  r := public.firmar('lote', '22222222-2222-2222-2222-222222222222', e, v, 'equivocada');
+  assert not (r->>'ok')::boolean and r->>'error' = 'Clave incorrecta.', 'Con la clave equivocada no firma';
+  r := public.firmar('lote', '22222222-2222-2222-2222-222222222222', e, v, 'clave-beto');
+  assert (r->>'ok')::boolean, 'Con su clave firma: ' || coalesce(r->>'error', '');
+  assert r->'fila'->'firma'->>'nombre' = 'Beto Gómez' and r->'fila'->'firma'->>'rol' = 'checker', 'La firma dice quién y con qué rol';
+  assert r->'fila'->'firma'->>'significado' = 'Dictamen: APROBADO', 'y qué significa';
+  assert (r->'fila'->>'version')::int = v + 1, 'Firmar sube la versión (para que llegue a los otros equipos)';
+  assert r->'fila'->'firma'->>'hash' = encode(extensions.digest((select datos from public.lotes where id = '22222222-2222-2222-2222-222222222222')::text, 'sha256'), 'hex'),
+    'La huella es la de los datos firmados';
+  assert (select count(*) from public.firmas) = 1, 'Queda en el historial de firmas';
+  -- Firmar una versión que ya no es la del servidor: no
+  begin
+    r := public.firmar('lote', '22222222-2222-2222-2222-222222222222', e, v, 'clave-beto');
+    assert false, 'no debería firmar una versión vieja';
+  exception when others then
+    assert sqlerrm like 'Cambió mientras lo mirabas%', sqlerrm;
+  end;
+  -- Un lote en control (sin dictamen) no se firma
+  perform public.guardar_lote('55555555-5555-5555-5555-555555555555', e, 0, prueba.lote(false));
+  begin
+    r := public.firmar('lote', '55555555-5555-5555-5555-555555555555', e, 1, 'clave-beto');
+    assert false, 'no debería firmar un lote en control';
+  exception when others then
+    assert sqlerrm = 'Solo se firma un lote dictaminado', sqlerrm;
+  end;
+  -- NC: se firma el cierre; la eficacia posterior no lo invalida, otro cambio sí
+  r := public.guardar_nc('66666666-6666-6666-6666-666666666666', e, 0, '{"fecha":"2026-11-08","estado":"abierta","desc":"Prueba firma"}');
+  begin
+    r := public.firmar('nc', '66666666-6666-6666-6666-666666666666', e, 1, 'clave-beto');
+    assert false, 'no debería firmar una NC abierta';
+  exception when others then
+    assert sqlerrm = 'Solo se firma una NC cerrada', sqlerrm;
+  end;
+  r := public.guardar_nc('66666666-6666-6666-6666-666666666666', e, 1, '{"fecha":"2026-11-08","estado":"cerrada","cierre":"2026-11-09","desc":"Prueba firma","eficacia":"pendiente"}');
+  r := public.firmar('nc', '66666666-6666-6666-6666-666666666666', e, 2, 'clave-beto');
+  assert (r->>'ok')::boolean and r->'fila'->'firma'->>'significado' like 'Cierre de la NC NC-2026-%', 'Firma el cierre de la NC';
+  r := public.guardar_nc('66666666-6666-6666-6666-666666666666', e, 3, '{"fecha":"2026-11-08","estado":"cerrada","cierre":"2026-11-09","desc":"Prueba firma","eficacia":"eficaz"}');
+  assert r->'nc'->'firma' is not null and r->'nc'->'firma' <> 'null'::jsonb, 'Verificar la eficacia no invalida la firma del cierre';
+  r := public.guardar_nc('66666666-6666-6666-6666-666666666666', e, 4, '{"fecha":"2026-11-08","estado":"cerrada","cierre":"2026-11-09","desc":"Prueba firma (corregida)","eficacia":"eficaz"}');
+  assert r->'nc'->'firma' = 'null'::jsonb or r->'nc'->'firma' is null, 'Cambiar lo firmado deja la firma sin vigencia';
+  assert (select count(*) from public.firmas) = 2, 'pero el historial la conserva';
+end $$;
+-- El historial de firmas no se modifica ni se borra desde la app
+select prueba.debe_fallar($$update public.firmas set nombre = 'Otro'$$, 'permission denied');
+select prueba.debe_fallar($$delete from public.firmas$$, 'permission denied');
+select prueba.debe_fallar($$insert into public.firmas (empresa_id, tipo, objeto_id, version, significado, hash, user_id, nombre, rol)
+  values ((select id from public.empresas), 'lote', gen_random_uuid(), 1, 'x', 'x', auth.uid(), 'x', 'x')$$, 'permission denied');
+select prueba.debe_fallar($$select count(*) from public.firmas_intentos$$, 'permission denied');
+select prueba.debe_fallar($$select public.huella_firma('lote', '{}')$$, 'permission denied');
+-- Demasiados intentos con la clave equivocada: se bloquea aunque después ponga la correcta
+do $$
+declare e uuid := (select id from public.empresas); r jsonb; i int;
+begin
+  for i in 1..5 loop
+    r := public.firmar('nc', '66666666-6666-6666-6666-666666666666', e, 5, 'mal');
+  end loop;
+  r := public.firmar('nc', '66666666-6666-6666-6666-666666666666', e, 5, 'clave-beto');
+  assert not (r->>'ok')::boolean and r->>'error' like 'Demasiados intentos%', 'Bloqueo por intentos fallidos';
+end $$;
+reset role;
+
+-- Coordinación reabre el lote firmado: la firma deja de estar vigente
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","email":"ana@uno.com"}', false);
+set role authenticated;
+do $$
+declare e uuid := (select id from public.empresas); r jsonb; v int;
+begin
+  assert (select count(*) from public.firmas) = 2, 'Otro miembro de la empresa ve el historial de firmas';
+  v := (select version from public.lotes where id = '22222222-2222-2222-2222-222222222222');
+  r := public.guardar_lote('22222222-2222-2222-2222-222222222222', e, v, '{"formato":2,"estado":"activo","cab":{"prod":"Jugo","lote":"J-1"},
+      "plantilla":{"final":[]},"final":{"dictamen":null,"unidades":[]}}');
+  assert r->'lote'->'firma' = 'null'::jsonb or r->'lote'->'firma' is null, 'Reabrir borra la firma vigente';
+end $$;
+reset role;
+-- Otra empresa no ve las firmas de Uno
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","email":"caro@dos.com"}', false);
+set role authenticated;
+do $$ begin assert (select count(*) from public.firmas) = 0, 'Caro no ve firmas de otra empresa'; end $$;
+reset role;

@@ -102,6 +102,28 @@ manda todos los pedidos a `js/demo.js`, un servidor de mentira que guarda en el 
 entra a la demo se recargan los datos de ejemplo. Las pruebas de la interfaz usan ese mismo
 servidor de mentira.
 
+## Firma electrónica
+
+Migración 0006. Se firma el **dictamen del lote** y el **cierre de la NC** (decisión del usuario).
+Es firma **electrónica** (Ley 25.506), no digital; sigue los criterios de 21 CFR Part 11:
+
+- **Dos componentes**: la sesión y la clave, que se pide **en cada firma**. `firmar()` (security
+  definer) verifica la clave con `extensions.crypt` contra `auth.users.encrypted_password` (el
+  hash bcrypt de Supabase Auth). Más de 5 claves equivocadas en 15 minutos bloquean la firma
+  (`firmas_intentos`), para que la función no sirva para adivinar claves.
+- **Qué muestra**: nombre, rol, hora del servidor, significado ("Dictamen: APROBADO", "Cierre de la
+  NC NC-2026-003") y un código de verificación (primeros 8 caracteres de la huella).
+- **Ligada al contenido**: huella SHA-256 de los datos (`huella_firma()`; en la NC sin la
+  eficacia, que es posterior al cierre). La firma vigente vive en `lotes.firma` /
+  `no_conformidades.firma` y viaja con la fila al sincronizar; `guardar_lote` / `guardar_nc` la
+  ponen en null si cambia lo firmado. El historial completo queda en `public.firmas`, que nadie
+  puede modificar ni borrar.
+- **Versión**: se firma la versión que el usuario ve (`p_version`); si en el servidor hay otra, no
+  se firma. Firmar sube la versión (sin cambiar los datos) para que llegue a los otros equipos.
+- **Sin señal no se firma** (y tampoco antes de que lo firmado se suba): el dictamen queda
+  "Pendiente de firma". En la demo, `firmar` está imitada en `js/demo.js` (con una huella de
+  mentira) y la clave es la de la demo.
+
 ## Control en línea por horario
 
 Etapa 2, parte 3. `plantilla.frecuencia = { modo: 'unidad' | 'horario', cadaMin }` (sin el campo =
