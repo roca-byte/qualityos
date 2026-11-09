@@ -112,14 +112,13 @@ function sembrarLotes() {
   await foto(page, '03-inicio');
 
   await page.click(boton('+ Nuevo lote'));
+  // El producto sale del catálogo: completa plantilla, rangos, inductora y cantidades.
   await page.fill('input[name=prod]', 'Aceite girasol 1,5 L');
+  await page.press('input[name=prod]', 'Enter');
+  await page.waitForSelector('text=Completado desde el catálogo');
   await page.fill('input[name=lote]', 'L-2611-015');
   await page.fill('input[name=cliente]', 'Almacén Central');
   await page.fill('input[name=linea]', 'Env-04');
-  await page.fill('input[name="min-peso"]', '10');
-  await page.fill('input[name="max-peso"]', '11');
-  await page.fill('input[name=cantFinal]', '4');
-  await page.selectOption('[name="dato-inductora"]', 'Inductora 2');
   await page.selectOption('[name="dato-turno"]', 'Mañana');
   await foto(page, '04-nuevo-lote');
 
@@ -185,6 +184,7 @@ function sembrarLotes() {
   await foto(page, '13-configuracion', 'section:has([data-form=config])');
   await foto(page, '14-personas', '#miembros');
   await foto(page, '15-plantillas', '#plantillas');
+  await foto(page, '21-productos', '#productos');
   await page.click('.fila-plantilla:has-text("Envasado de alimentos") >> text=Editar');
   await page.waitForSelector('.ed-item');
   await recorte(page, '16-editor-plantilla', '[data-form=plantilla]', '.ed-item[data-sec="linea"][data-i="1"]');
@@ -206,13 +206,12 @@ function sembrarLotes() {
   await page.click(boton('+ Nuevo lote'));
   await page.waitForTimeout(400);
   await tipear('input[name=prod]', 'Aceite girasol 1,5 L');
-  await tipear('input[name=lote]', 'L-2611-015');
+  await page.press('input[name=prod]', 'Enter');   // del catálogo: completa rangos, inductora y cantidades
+  await page.waitForTimeout(700);
+  await page.type('input[name=lote]', 'L-2611-015', { delay: 45 });
   await tipear('input[name=cliente]', 'Almacén Central');
-  await tipear('input[name="min-peso"]', '10');
-  await tipear('input[name="max-peso"]', '11');
-  await page.fill('input[name=cantFinal]', '2');
-  await page.selectOption('[name="dato-inductora"]', 'Inductora 2');
   await page.selectOption('[name="dato-turno"]', 'Mañana');
+  await page.fill('input[name=cantFinal]', '2');
   await page.waitForTimeout(400);
   await page.click(boton('Crear lote'));
   await page.waitForTimeout(700);

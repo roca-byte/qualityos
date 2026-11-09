@@ -102,6 +102,24 @@ manda todos los pedidos a `js/demo.js`, un servidor de mentira que guarda en el 
 entra a la demo se recargan los datos de ejemplo. Las pruebas de la interfaz usan ese mismo
 servidor de mentira.
 
+## Catálogo de productos
+
+Etapa 2, parte 2. Optativo: `empresas.config.productos` (lo edita solo Administración, como las
+plantillas; RLS de `empresas`). Cada producto: `{ id, nombre, codigo, plantillaId, rangos,
+cantPorUnidad, cantFinal, extra }`.
+
+- Al crear un lote, el campo Producto sugiere los del catálogo (datalist). Cuando el valor
+  coincide con un nombre o código (`Reglas.buscarProducto`, sin importar mayúsculas), la app
+  cambia a su plantilla y completa rangos, datos del lote y unidades del control final
+  (`Reglas.valoresDeProducto`, solo lo que esa plantilla tiene). Enter en el producto hace lo
+  mismo (no envía el formulario a medio llenar).
+- El lote **copia** esos valores y guarda `cab.productoId`; la cantidad por unidad va a
+  `final.cantPorUnidad`. Corregir o borrar el producto no cambia lotes ya hechos.
+- "Guardar este producto en el catálogo" (Administración, producto que no está) arma el
+  producto con lo cargado en el lote (`Reglas.productoDesdeLote`).
+- `dibujar()` no puede empezar mientras otro dibujo está en curso: al reemplazar la pantalla, el
+  campo con foco dispara su "change" y, si ese evento redibuja, el navegador da error.
+
 ## No conformidades
 
 Estaban en la versión vieja y volvieron el 09/11/2026 (migración 0005). Se cargan **todos los

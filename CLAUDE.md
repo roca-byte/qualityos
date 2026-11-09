@@ -52,6 +52,7 @@ node tests/e2e/primer-uso.js      # cuenta nueva, invitación y bienvenida
 node tests/e2e/demo.js            # modo demo sin pedidos a Supabase
 node tests/e2e/plantillas.js      # armar una plantilla propia y usarla en un lote
 node tests/e2e/nc.js [carpeta]    # no conformidades: desde el lote, cierre, sin señal, importar, imprimir
+node tests/e2e/productos.js       # catálogo: lote desde producto, guardar como producto, ⚙ Productos
 ```
 
 ## Guía y demo

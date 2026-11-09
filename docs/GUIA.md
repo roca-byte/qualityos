@@ -52,6 +52,10 @@ En la pantalla principal ves los lotes **En control** y el **Historial**. Tocá 
 
 <img src="img/03-inicio.png" alt="Lotes en control" width="300"> <img src="img/04-nuevo-lote.png" alt="Formulario de nuevo lote" width="300">
 
+- **Producto**: si está en el **catálogo** de tu empresa, elegilo de la lista (o escribí su
+  código y tocá Enter). La app completa sola la plantilla, los rangos, los datos del lote y la
+  cantidad de unidades; podés cambiar lo que haga falta. Si no está, escribilo y completá el
+  resto a mano.
 - **Plantilla de control**: qué vas a controlar (si tu empresa tiene más de una, elegí la del
   producto o la línea).
 - **Producto** y **N° de lote** son obligatorios.
@@ -174,6 +178,7 @@ En **⚙**:
 
 - **Empresa**: nombre y líneas.
 - **Plantillas de control**: qué se controla en cada lote (ver abajo).
+- **Productos**: el catálogo (ver abajo).
 - **No conformidades**: el código y la versión del registro de NC, el plazo en días hábiles y la
   lista de **tipos de desvío** con su gravedad sugerida. Si un tipo se llama igual que un control
   de la plantilla (por ejemplo «Inducción débil»), las NC creadas desde un lote lo toman solas.
@@ -210,6 +215,21 @@ En el editor:
 Los lotes ya creados **no cambian** si editás o borrás una plantilla: cada lote guarda una copia
 de la plantilla con la que se hizo.
 
+### Productos
+
+El catálogo es **optativo** y ahorra tipeo al crear cada lote. Cada producto tiene su nombre,
+un código opcional, la **plantilla** con la que se controla, los **rangos por defecto** de las
+mediciones que se cargan en cada lote, la **cantidad por unidad** (por ejemplo 1000 L por
+pallet), cuántas unidades lleva el control final y los **datos del lote por defecto** (por
+ejemplo, la inductora que usa).
+
+<img src="img/21-productos.png" alt="Catálogo de productos" width="300">
+
+- Para no cargarlo dos veces: al crear un lote con un producto que no está, marcá **Guardar
+  este producto en el catálogo** y queda con todo lo que cargaste.
+- Corregir o borrar un producto no cambia los lotes ya creados: cada lote guarda sus valores.
+- Lo administra **Administración**; el resto lo usa al crear lotes.
+
 #### Codificación del registro
 
 Cada plantilla es un **registro del sistema de gestión** y lleva su codificación, como pide la
@@ -229,7 +249,7 @@ norma (ISO 9001, 7.5): **código** (por ejemplo REG-01, obligatorio y sin repeti
 |---|---|
 | **Inspector de Calidad** | Crear y controlar lotes. Dictaminar con el control final completo. Cargar, cerrar y anular NC |
 | **Coordinación** | Además: dictaminar con unidades pendientes, reabrir o corregir lotes dictaminados, borrar lotes |
-| **Administración** | Además: configurar la empresa y las plantillas e invitar personas |
+| **Administración** | Además: configurar la empresa, las plantillas y el catálogo de productos, e invitar personas |
 
 ## 9. Sin señal
 
