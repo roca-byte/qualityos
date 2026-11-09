@@ -46,6 +46,11 @@ medición (número con unidad, N lecturas y tolerancia fija, por lote o ninguna)
 fecha. Una medición fuera de tolerancia cuenta como NOK; los OK/NOK y las mediciones pueden
 marcarse como reprocesados si la plantilla lo permite.
 
+- **Datos del lote** (`p.cabecera`, Etapa 2): campos propios de la cabecera (equipo,
+  inductora, turno…) de tipo texto, lista, número o fecha, obligatorios o no. El lote guarda
+  los valores en `cab.extra[id]`. Cambiarlos cuenta como cambio de contenido (pide versión).
+  Reemplazan a la "inductora" fija del formato anterior: `migrarLote` la pasa a
+  `cab.extra.inductora`. El servidor no los valida (son datos de la cabecera, no del dictamen).
 - Las plantillas viven en la configuración de la empresa (`empresas.config.plantillas`) y se
   editan en ⚙ (`js/editor.js`). Hay ejemplos por rubro en `Reglas.EJEMPLOS`.
 - **Cada lote guarda una copia** de su plantilla: editar o borrar una plantilla no cambia los

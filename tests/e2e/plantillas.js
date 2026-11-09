@@ -69,6 +69,18 @@ const CAPTURAS = process.argv[2] || null;
   assert.equal(await page.inputValue(item('linea', 0) + ' [name=nombre]'), 'pH');
   // La etiqueta del control final no es obligatoria para dictaminar
   await page.uncheck(item('final', 1) + ' [name=obligatorio]');
+  // Datos del lote: el ejemplo trae el Turno; se agrega la llenadora como lista obligatoria
+  assert.equal(await page.inputValue(item('cabecera', 0) + ' [name=nombre]'), 'Turno');
+  await page.click('button[data-act="item-agregar"][data-sec="cabecera"]');
+  await page.fill(item('cabecera', 1) + ' [name=nombre]', 'Llenadora');
+  await page.selectOption(item('cabecera', 1) + ' [name=tipo]', 'lista');
+  await page.waitForSelector(item('cabecera', 1) + ' [name=opciones]');
+  assert.equal(await page.inputValue(item('cabecera', 1) + ' [name=nombre]'), 'Llenadora', 'cambiar el tipo no borra lo escrito');
+  await page.check(item('cabecera', 1) + ' [name=obligatorio]');
+  await page.click('button:has-text("Guardar plantilla")');
+  // Se avisa en el orden del formulario: primero los datos del lote, después los ítems.
+  await page.waitForSelector('text="Llenadora": escribí las opciones de la lista');
+  await page.fill(item('cabecera', 1) + ' [name=opciones]', 'Llenadora A, Llenadora B ,');
   await page.click('button:has-text("Guardar plantilla")');
   await page.waitForSelector('text=el mínimo es mayor que el máximo');
   await page.fill(item('linea', 0) + ' [name=min]', '3');
@@ -98,13 +110,23 @@ const CAPTURAS = process.argv[2] || null;
   await page.fill('input[name="max-torque"]', '2.0');
   assert.match(await page.textContent('form'), /Cantidad de muestras del control final/);
   await page.fill('input[name=cantFinal]', '2');
+  // Los datos del lote obligatorios: sin elegirlos el navegador no deja crear el lote
+  assert.deepEqual(await page.locator('select[name="dato-' + (await page.evaluate(() =>
+    Store.perfil().config.plantillas.find(p => p.nombre === 'Jugos 1 L').cabecera[1].id)) + '"] option').allTextContents(),
+    ['—', 'Llenadora A', 'Llenadora B'], 'las opciones quedan limpias');
+  await page.click('text=Crear lote');
+  assert.ok(await page.evaluate(() => document.querySelector('[name="dato-turno"]').validity.valueMissing), 'el turno es obligatorio');
+  await page.selectOption('[name="dato-turno"]', 'Tarde');
+  await page.selectOption('select[name^="dato-"]:not([name="dato-turno"])', 'Llenadora B');
   await page.click('text=Crear lote');
   await page.waitForSelector('#cl-0');
   const tarjeta = await page.textContent('#cl-0');
   assert.match(tarjeta, /pH[\s\S]*Volumen[\s\S]*Torque de tapa[\s\S]*Codificado de fecha[\s\S]*Etiqueta/);
   assert.doesNotMatch(tarjeta, /Inducción|Peso por pico|Brix/, 'solo lo de su plantilla');
-  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L \(REG-05 v00\) · Volumen \/ nivel de llenado 995–1010 ml/);
-  paso('el lote muestra solo los controles de su plantilla y los rangos cargados');
+  assert.match(await page.textContent('.cab-lote'), /Jugos 1 L \(REG-05 v00\) · Turno: Tarde · Llenadora: Llenadora B · Volumen \/ nivel de llenado 995–1010 ml/);
+  assert.match(await page.evaluate(() => Imprimir.html(Store.lotes().find(x => x.datos.cab.lote === 'J-0001'), Store.perfil().config, 'X')),
+    /Datos del lote<\/th><td colspan="5">Turno: Tarde · Llenadora: Llenadora B/);
+  paso('el lote muestra solo los controles de su plantilla, sus datos (turno, llenadora) y los rangos cargados');
 
   // Control: pH fuera de tolerancia fija → NOK; se corrige
   await page.fill('#cl-0 input[data-item][data-l="0"] >> nth=0', '4.6');

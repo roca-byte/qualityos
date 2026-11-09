@@ -130,11 +130,17 @@ function preparar() {
   // ── Lote nuevo ──
   await cartel('Lotes en control e historial', 'Arrancamos uno nuevo');
   await tocar(boton('+ Nuevo lote'), 700);
-  await cartel('1 · Creá el lote', 'Producto, n° de lote, cliente, línea y rango de peso por pico', 800);
+  await cartel('1 · Creá el lote', 'Producto, lote, cliente, línea, los datos que pide la plantilla y el rango de peso', 800);
   await tipear('input[name=prod]', 'Aceite girasol 1,5 L');
   await tipear('input[name=lote]', 'L-2611-015');
   await tipear('input[name=cliente]', 'Almacén Central');
   await tipear('input[name=linea]', 'Env-04');
+  // Datos del lote que pide la plantilla (inductora y turno)
+  await ver('[name="dato-inductora"]');
+  await page.selectOption('[name="dato-inductora"]', 'Inductora 2');
+  await espera(400);
+  await page.selectOption('[name="dato-turno"]', 'Mañana');
+  await espera(400);
   await tipear('input[name="min-peso"]', '10');
   await tipear('input[name="max-peso"]', '11');
   await ver('input[name=cantFinal]');

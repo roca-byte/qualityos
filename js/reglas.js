@@ -12,6 +12,9 @@
  *   fecha     una fecha (ej.: vencimiento)
  * Cada lote guarda una COPIA de su plantilla: si la plantilla cambia, los lotes viejos no.
  *
+ * La plantilla también puede pedir DATOS DEL LOTE propios (p.cabecera): equipo, inductora,
+ * turno… Cada uno es texto, lista de opciones, número o fecha, y se guarda en cab.extra[id].
+ *
  * Valores guardados por unidad (pallet, caja, muestra…): u.v[itemId]
  *   okNok: true | false | null      medicion: ['10.4', '', …] (una por lectura)
  *   texto / fecha: 'texto' | 'AAAA-MM-DD'
@@ -243,6 +246,9 @@ var Reglas = (function () {
   function ok(id, nombre, repro) { return { id: id, nombre: nombre, tipo: 'okNok', reproceso: repro !== false, obligatorio: true }; }
   function txt(id, nombre) { return { id: id, nombre: nombre, tipo: 'texto', obligatorio: true }; }
   function fec(id, nombre) { return { id: id, nombre: nombre, tipo: 'fecha', obligatorio: true }; }
+  // Dato de cabecera de ejemplo: dato(id, nombre, tipo, [opciones], obligatorio)
+  function dato(id, nombre, tipo, opciones, oblig) { return { id: id, nombre: nombre, tipo: tipo, opciones: opciones || [], obligatorio: !!oblig }; }
+  var TURNO = dato('turno', 'Turno', 'lista', ['Mañana', 'Tarde', 'Noche'], true);
 
   // Puntos de partida por rubro: el administrador elige uno y lo ajusta a su planta.
   // Las tolerancias que dependen del producto quedan "por lote" (se cargan al crear el lote).
@@ -250,6 +256,7 @@ var Reglas = (function () {
     agro: {
       rubro: 'Agroquímicos / químicos',
       nombre: 'Envasado de líquidos', unidad: 'Pallet', unidades: 'Pallets', cantidad: 'L',
+      cabecera: [dato('inductora', 'Inductora', 'lista', ['Inductora 1', 'Inductora 2'], true), TURNO],
       linea: [med('peso', 'Peso por pico', 'kg', 4, 'lote'), txt('loteEnv', 'Lote en envase'), txt('codigo', 'Código'),
         fec('fprod', 'Fecha de producción'), fec('fvenc', 'Fecha de vencimiento'),
         med('ind', 'Inducción', '', 1, 'fija', [1.0, 1.4], true, true),
@@ -259,6 +266,7 @@ var Reglas = (function () {
     alimentos: {
       rubro: 'Alimentos',
       nombre: 'Envasado de alimentos', unidad: 'Muestra', unidades: 'Muestras', cantidad: 'kg',
+      cabecera: [dato('equipo', 'Envasadora', 'texto'), TURNO],
       linea: [med('peso', 'Peso neto', 'g', 5, 'lote'), med('temp', 'Temperatura del producto', '°C', 1, 'lote', null, true),
         ok('metales', 'Detector de metales', false), ok('sellado', 'Sellado / cierre'),
         ok('rotulo', 'Rotulado: lote y vencimiento'), ok('alergenos', 'Declaración de alérgenos'),
@@ -269,6 +277,7 @@ var Reglas = (function () {
     bebidas: {
       rubro: 'Bebidas',
       nombre: 'Envasado de bebidas', unidad: 'Muestra', unidades: 'Muestras', cantidad: 'L',
+      cabecera: [TURNO],
       linea: [med('vol', 'Volumen / nivel de llenado', 'ml', 3, 'lote'), med('torque', 'Torque de tapa', 'N·m', 3, 'lote'),
         med('brix', '°Brix', '°Bx', 1, 'lote', null, true), ok('codif', 'Codificado de fecha'), ok('etiqueta', 'Etiqueta')],
       final: [ok('herm', 'Hermeticidad'), ok('etiquetaF', 'Etiqueta'), ok('pallet', 'Paletizado')]
@@ -276,6 +285,7 @@ var Reglas = (function () {
     cosmetica: {
       rubro: 'Cosmética / limpieza',
       nombre: 'Envasado cosmética', unidad: 'Muestra', unidades: 'Muestras', cantidad: 'unid.',
+      cabecera: [TURNO],
       linea: [med('peso', 'Peso', 'g', 3, 'lote'), med('ph', 'pH', '', 1, 'lote', null, true),
         med('visc', 'Viscosidad', 'cP', 1, 'lote'), ok('aspecto', 'Aspecto, color y olor'),
         ok('cierre', 'Cierre / válvula'), ok('etiqueta', 'Etiqueta y lote')],
@@ -283,7 +293,7 @@ var Reglas = (function () {
     },
     blanco: {
       rubro: 'En blanco',
-      nombre: 'Plantilla nueva', unidad: 'Unidad', unidades: 'Unidades', cantidad: '',
+      nombre: 'Plantilla nueva', unidad: 'Unidad', unidades: 'Unidades', cantidad: '', cabecera: [],
       linea: [ok('conforme', 'Conforme')],
       final: [ok('conformeF', 'Conforme')]
     }
@@ -296,6 +306,28 @@ var Reglas = (function () {
     e.cantFinal = 12;
     e.doc = { codigo: '', version: '00', vigencia: hoy(), elaboro: '', aprobo: '', historial: [] };
     return e;
+  }
+
+  // ───────────────────── Datos del lote (cabecera) ─────────────────────
+  var TIPOS_DATO = { texto: 'Texto', lista: 'Lista de opciones', numero: 'Número', fecha: 'Fecha' };
+
+  // Los datos que pide la plantilla, con su valor en el lote ('' si falta).
+  function datosLote(p, cab) {
+    var extra = (cab && cab.extra) || {};
+    return (p.cabecera || []).map(function (d) {
+      return { id: d.id, nombre: d.nombre, tipo: d.tipo, valor: extra[d.id] === undefined || extra[d.id] === null ? '' : String(extra[d.id]).trim() };
+    });
+  }
+  // Nombres de los datos obligatorios que faltan (no deja crear ni guardar la cabecera sin ellos).
+  function datosFaltantes(p, cab) {
+    var obligatorios = {};
+    (p.cabecera || []).forEach(function (d) { if (d.obligatorio) obligatorios[d.id] = true; });
+    return datosLote(p, cab).filter(function (x) { return obligatorios[x.id] && !x.valor; }).map(function (x) { return x.nombre; });
+  }
+  // "Inductora: Inductora 2 · Turno: Mañana", para la pantalla y el PDF (las fechas en dd/mm/aaaa).
+  function textoDatos(p, cab) {
+    return datosLote(p, cab).filter(function (x) { return x.valor; })
+      .map(function (x) { return x.nombre + ': ' + (x.tipo === 'fecha' ? fechaLarga(x.valor) : x.valor); });
   }
 
   // ───────────────────── Codificación del registro ─────────────────────
@@ -331,7 +363,7 @@ var Reglas = (function () {
   // ¿Cambió QUÉ se controla? (no cuenta el nombre ni la codificación). Si cambió, la norma
   // pide una versión nueva del registro.
   function cambioContenido(a, b) {
-    var clave = function (p) { return JSON.stringify([p.unidad, p.unidades, p.cantidad, p.linea, p.final]); };
+    var clave = function (p) { return JSON.stringify([p.unidad, p.unidades, p.cantidad, p.linea, p.final, p.cabecera || []]); };
     return clave(a) !== clave(b);
   }
 
@@ -342,6 +374,11 @@ var Reglas = (function () {
     if (p.doc && !String(p.doc.version || '').trim()) return 'Falta la versión del registro.';
     if (!String(p.unidad || '').trim()) return 'Falta el nombre de la unidad que se controla (pallet, caja, muestra…).';
     if (!p.linea.length && !p.final.length) return 'Agregá al menos un ítem a controlar.';
+    var datos = p.cabecera || [];
+    for (var j = 0; j < datos.length; j++) {
+      if (!String(datos[j].nombre || '').trim()) return 'Hay un dato del lote sin nombre.';
+      if (datos[j].tipo === 'lista' && !(datos[j].opciones || []).length) return '"' + datos[j].nombre + '": escribí las opciones de la lista.';
+    }
     var todos = p.linea.concat(p.final);
     for (var i = 0; i < todos.length; i++) {
       var it = todos[i];
@@ -366,19 +403,24 @@ var Reglas = (function () {
     p.nombre = 'Envasado (formato anterior)';
     var ind = (config.inductoras || [])[0];
     if (ind) p.linea.forEach(function (it) { if (it.id === 'ind') { it.min = ind.tolMin; it.max = ind.tolMax; it.semaforo = ind.semaforo !== false; } });
+    // La inductora se elegía en el lote: pasa a ser un dato de la cabecera con las de la empresa.
+    // El turno no existía, así que no se pide.
+    var nombres = (config.inductoras || []).map(function (i) { return i.nombre; }).filter(Boolean);
+    p.cabecera = nombres.length ? [dato('inductora', 'Inductora', 'lista', nombres, false)] : [];
     return p;
   }
 
   // Lote viejo → formato 2. Lo que no tiene equivalente exacto: el OK/NOK de inducción del
-  // control en línea pasa a deducirse del valor medido, y la inductora elegida se pierde
-  // (queda anotada en las observaciones).
+  // control en línea pasa a deducirse del valor medido. La inductora elegida queda como dato
+  // de la cabecera (cab.extra.inductora).
   function migrarLote(d, config) {
     if (d.formato === 2) return d;
     var p = plantillaDesdeConfigVieja(config || {});
     var ind = ((config && config.inductoras) || []).filter(function (i) { return i.id === d.cab.indId; })[0];
     if (ind) p.linea.forEach(function (it) { if (it.id === 'ind') { it.min = ind.tolMin; it.max = ind.tolMax; } });
     var cab = { prod: d.cab.prod, lote: d.cab.lote, cliente: d.cab.cliente || '', linea: d.cab.linea || '',
-      fecha: d.cab.fecha || '', checker: d.cab.checker || '', rangos: { peso: { min: d.cab.pesoMin || '', max: d.cab.pesoMax || '' } } };
+      fecha: d.cab.fecha || '', checker: d.cab.checker || '', rangos: { peso: { min: d.cab.pesoMin || '', max: d.cab.pesoMax || '' } },
+      extra: ind ? { inductora: ind.nombre } : {} };
     var lineaV = (d.linea || []).map(function (x, i) {
       var u = nuevaUnidad(x.nPal || i + 1);
       u.hora = x.hora || ''; u.obs = x.obs || '';
@@ -397,7 +439,6 @@ var Reglas = (function () {
       return u;
     });
     var hallazgos = (d.hallazgos || []).slice();
-    if (ind) hallazgos.push({ ts: '', autor: '', txt: 'Inductora usada: ' + ind.nombre + ' (dato del formato anterior)' });
     return {
       formato: 2, estado: d.estado || 'activo', cab: cab, plantilla: p, linea: lineaV,
       final: { cantPorUnidad: f.ltsPorPallet || '', unidades: unidades, dictamen: f.dictamen || null, fechaDictamen: f.fechaDictamen || null,
@@ -586,7 +627,8 @@ var Reglas = (function () {
   }
 
   return {
-    TIPOS: TIPOS, EJEMPLOS: EJEMPLOS,
+    TIPOS: TIPOS, EJEMPLOS: EJEMPLOS, TIPOS_DATO: TIPOS_DATO,
+    datosLote: datosLote, datosFaltantes: datosFaltantes, textoDatos: textoDatos,
     hoy: hoy, fechaLarga: fechaLarga, numero: numero, copia: copia, nuevoId: nuevoId,
     rango: rango, semaforo: semaforo, lecturas: lecturas, vacio: vacio, evaluar: evaluar,
     estadoUnidadLinea: estadoUnidadLinea, estadoUnidadFinal: estadoUnidadFinal, faltantes: faltantes,

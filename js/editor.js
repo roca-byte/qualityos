@@ -50,6 +50,22 @@ var Editor = (function () {
     return h + '</div>';
   }
 
+  // Un dato del lote (cabecera): nombre, tipo y, si es lista, sus opciones separadas por coma.
+  var TIPOS_DATO = [['texto', 'Texto'], ['lista', 'Lista de opciones'], ['numero', 'Número'], ['fecha', 'Fecha']];
+  function htmlDato(it, i, total) {
+    var base = 'data-sec="cabecera" data-i="' + i + '"';
+    return '<div class="ed-item" ' + base + ' data-id="' + esc(it.id) + '">' +
+      '<div class="ed-cab"><b>' + (i + 1) + '</b>' +
+      '<button type="button" class="btn chico" data-act="item-mover" ' + base + ' data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Subir">↑</button>' +
+      '<button type="button" class="btn chico" data-act="item-mover" ' + base + ' data-d="1"' + (i === total - 1 ? ' disabled' : '') + ' aria-label="Bajar">↓</button>' +
+      '<button type="button" class="btn chico peligro" data-act="item-quitar" ' + base + ' aria-label="Quitar dato">✕</button></div>' +
+      '<div class="fila2"><label>Dato<input name="nombre" required value="' + esc(it.nombre) + '" placeholder="Ej.: Inductora, Equipo, Turno"></label>' +
+      '<label>Tipo<select name="tipo" data-act-change="editor">' + opciones(TIPOS_DATO, it.tipo) + '</select></label></div>' +
+      (it.tipo === 'lista' ? '<label>Opciones (separadas por coma)<input name="opciones" value="' + esc((it.opciones || []).join(', ')) +
+        '" placeholder="Ej.: Inductora 1, Inductora 2"></label>' : '') +
+      '<label class="inline"><input type="checkbox" name="obligatorio"' + (it.obligatorio ? ' checked' : '') + '> Obligatorio para crear el lote</label></div>';
+  }
+
   // Codificación del registro (ISO 9001, 7.5): código, versión, vigencia, quién elaboró y
   // aprobó, y el historial de versiones (solo lectura: lo completa la app al guardar).
   function htmlDoc(doc, cambio) {
@@ -82,6 +98,10 @@ var Editor = (function () {
       '<div class="fila2"><label>Cantidad por unidad, en<input name="p-cantidad" value="' + esc(p.cantidad || '') + '" placeholder="L, kg, unid. (vacío = no se usa)"></label>' +
       '<label>Unidades del control final (por defecto)<input name="p-cantFinal" type="number" min="0" max="200" value="' + esc(p.cantFinal || 12) + '"></label></div>' +
       htmlDoc(doc, p.cambio) +
+      '<h3>Datos del lote</h3><p class="ayuda">Lo que se completa al crear el lote además de producto, lote, cliente y línea ' +
+      '(equipo, inductora, turno…). Sale en la cabecera del lote y en el PDF.</p>' +
+      (p.cabecera || []).map(function (it, i) { return htmlDato(it, i, p.cabecera.length); }).join('') +
+      '<button type="button" class="btn" data-act="item-agregar" data-sec="cabecera">+ Dato del lote</button>' +
       seccion('linea', 'Control en línea', 'Lo que se revisa mientras la línea produce, unidad por unidad.') +
       seccion('final', 'Control final', 'Lo que se revisa antes del despacho. Los obligatorios tienen que estar completos para dictaminar.') +
       '<p class="ayuda">Los lotes ya creados no cambian: cada uno guarda la plantilla con la que se hizo.</p>' +
@@ -103,6 +123,16 @@ var Editor = (function () {
       elaboro: val('d-elaboro'), aprobo: val('d-aprobo'), historial: (anterior.doc && anterior.doc.historial) || [] };
     // El motivo del cambio no es parte de la plantilla: app.js lo pasa al historial al guardar.
     p.cambio = val('d-cambio');
+    p.cabecera = [].map.call(f.querySelectorAll('.ed-item[data-sec="cabecera"]'), function (div) {
+      var v = function (n) { var e = div.querySelector('[name="' + n + '"]'); return e ? (e.type === 'checkbox' ? e.checked : e.value.trim()) : undefined; };
+      var previo = (anterior.cabecera || []).filter(function (x) { return x.id === div.dataset.id; })[0] || {};
+      var tipo = v('tipo');
+      // Si se pasa a lista y todavía no se escribieron opciones, se conservan las que tenía.
+      var ops = v('opciones') !== undefined ? v('opciones').split(',') : (previo.opciones || []);
+      return { id: div.dataset.id, nombre: v('nombre'), tipo: tipo,
+        opciones: tipo === 'lista' ? ops.map(function (o) { return String(o).trim(); }).filter(Boolean) : [],
+        obligatorio: !!v('obligatorio') };
+    });
     ['linea', 'final'].forEach(function (sec) {
       p[sec] = [].map.call(f.querySelectorAll('.ed-item[data-sec="' + sec + '"]'), function (div) {
         var v = function (n) { var e = div.querySelector('[name="' + n + '"]'); return e ? (e.type === 'checkbox' ? e.checked : e.value.trim()) : undefined; };

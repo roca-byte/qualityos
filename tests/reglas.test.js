@@ -168,7 +168,9 @@ test('lote del formato anterior se convierte sin perder datos', () => {
   assert.equal(n.linea[0].r.pack, true);
   assert.equal(R.rango(n.plantilla.linea.find(i => i.id === 'ind'), n.cab).max, 1.3, 'toma la tolerancia de la inductora del lote');
   assert.equal(R.resumenFinal(n).cantAprobada, 1000);
-  assert.match(n.hallazgos[0].txt, /Inductora usada: Dos/);
+  assert.equal(n.cab.extra.inductora, 'Dos', 'la inductora elegida pasa a ser un dato de la cabecera');
+  assert.deepEqual(n.plantilla.cabecera[0].opciones, ['Uno', 'Dos']);
+  assert.deepEqual(R.datosFaltantes(n.plantilla, n.cab), [], 'el turno no existía: no se pide');
   assert.equal(R.migrarLote(n), n, 'un lote nuevo no se toca');
 });
 
@@ -177,4 +179,26 @@ test('normalizar cliente y fechas locales', () => {
   assert.equal(R.hoy(new Date(2026, 10, 7, 23, 30)), '2026-11-07');
   assert.equal(R.fechaLarga('2026-11-07'), '07/11/2026');
   assert.equal(R.estadoPorDictamen('APROBADO_PARCIAL'), 'aprobado_parcial');
+});
+
+test('datos del lote definidos por la plantilla', () => {
+  const p = R.plantillaEjemplo('agro');
+  assert.deepEqual(p.cabecera.map(d => d.id), ['inductora', 'turno']);
+  const cab = { extra: { inductora: 'Inductora 2', turno: '' } };
+  assert.deepEqual(R.datosFaltantes(p, cab), ['Turno']);
+  cab.extra.turno = 'Tarde';
+  assert.deepEqual(R.datosFaltantes(p, cab), []);
+  assert.deepEqual(R.textoDatos(p, cab), ['Inductora: Inductora 2', 'Turno: Tarde']);
+  const conFecha = { cabecera: [{ id: 'f', nombre: 'Fecha de envasado', tipo: 'fecha', opciones: [], obligatorio: false }] };
+  assert.deepEqual(R.textoDatos(conFecha, { extra: { f: '2026-11-09' } }), ['Fecha de envasado: 09/11/2026']);
+  assert.deepEqual(R.datosFaltantes({ linea: [], final: [] }, {}), [], 'una plantilla sin datos extra (de antes) no pide nada');
+  // Validación y versión
+  p.doc.codigo = 'REG-01';
+  assert.equal(R.validarPlantilla(p), '');
+  const sinOpciones = R.copia(p); sinOpciones.cabecera[0].opciones = [];
+  assert.match(R.validarPlantilla(sinOpciones), /Inductora": escribí las opciones/);
+  const sinNombre = R.copia(p); sinNombre.cabecera[1].nombre = ' ';
+  assert.match(R.validarPlantilla(sinNombre), /dato del lote sin nombre/);
+  const otra = R.copia(p); otra.cabecera.push({ id: 'eq', nombre: 'Equipo', tipo: 'texto', opciones: [], obligatorio: false });
+  assert.equal(R.cambioContenido(p, otra), true, 'agregar un dato del lote pide versión nueva');
 });

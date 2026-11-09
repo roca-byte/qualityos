@@ -27,10 +27,21 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
 
 ## Próximo
 
-1. **Etapa 2 · Productos y control por horario.** Catálogo de productos con su plantilla y sus
-   rangos por defecto (que al crear el lote se complete solo). Control por horario ("cada 2 h")
-   además de por unidad. Campos extra de cabecera definidos por la plantilla (por ejemplo, el
-   equipo o la inductora usada, que antes se elegía en el lote).
+1. **Etapa 2 · Productos y control por horario** (diseño acordado el 09/11/2026), en tres partes
+   que se publican por separado. No necesita migración: todo va en `empresas.config` y en los
+   datos del lote.
+   - **Parte 1 · Datos del lote por plantilla** — hecha (09/11/2026). `p.cabecera` (texto,
+     lista, número o fecha; obligatorio o no) → `cab.extra`. Ver "Plantillas de control" en
+     `docs/DISENO.md`.
+   - **Parte 2 · Catálogo de productos** (⚙, **solo Administración**): nombre, código, plantilla,
+     rangos por defecto, cantidad por unidad, unidades del control final y valores por defecto
+     de los datos del lote. Al crear el lote, elegir el producto completa todo (editable). Es
+     optativo: un producto que no está se escribe a mano. "Guardar como producto" al crear un
+     lote nuevo. Cada lote guarda copia (corregir el catálogo no cambia lotes viejos).
+   - **Parte 3 · Control en línea por horario**: la plantilla elige **por unidad** (como hoy) **o**
+     **por horario** (uno u otro, no los dos), "cada X horas **desde el último control**".
+     "Próximo control: 12:10" y "⏰ Control atrasado" en el lote y su tarjeta. Sin notificaciones
+     con la app cerrada (eso queda para después, si se pide).
 
 ## Más adelante
 

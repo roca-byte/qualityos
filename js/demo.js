@@ -232,7 +232,9 @@ var Demo = (function () {
     };
     var cfOk = { idPal: true, traz: true, estPal: true, indF: true };
     var lote = function (p, cab, estado, dictamen, linea, finales, por) {
-      var l = R.nuevoLote(mas({ checker: 'Laura Gómez' }, cab), p, 0);
+      // Datos del lote que piden las plantillas de ejemplo (inductora y turno, o envasadora y turno).
+      var extra = p === agro ? { inductora: 'Inductora 2', turno: 'Mañana' } : { equipo: 'Envasadora 3', turno: 'Mañana' };
+      var l = R.nuevoLote(mas({ checker: 'Laura Gómez', extra: extra }, cab), p, 0);
       l.linea = linea;
       l.final.unidades = finales.map(function (f, i) { return unidad(i + 1, f[0] || {}, f[1]); });
       l.final.cantPorUnidad = p === agro ? '1000' : '480';

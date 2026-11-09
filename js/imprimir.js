@@ -92,6 +92,7 @@ var Imprimir = (function () {
       '<th>Cliente</th><td>' + esc(cab.cliente || '—') + '</td></tr><tr>' +
       '<th>Línea</th><td>' + esc(cab.linea || '—') + '</td><th>Fecha</th><td>' + esc(Reglas.fechaLarga(cab.fecha)) + '</td>' +
       '<th>Inspector de Calidad</th><td>' + esc(cab.checker || '—') + '</td></tr><tr>' +
+      (Reglas.textoDatos(p, cab).length ? '<th>Datos del lote</th><td colspan="5">' + Reglas.textoDatos(p, cab).map(esc).join(' · ') + '</td></tr><tr>' : '') +
       '<th>Rangos del lote</th><td colspan="3">' + (rangos || '—') + '</td>' +
       '<th>Estado</th><td><b>' + esc(String(l.estado).replace('_', ' ').toUpperCase()) + '</b></td>' +
       '</tr></table>';
