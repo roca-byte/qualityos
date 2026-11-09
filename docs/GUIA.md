@@ -91,6 +91,17 @@ En otra plantilla los controles son otros. Por ejemplo, en una de alimentos:
 
 > Tocar otra vez un OK o NOK ya marcado lo deja sin marcar.
 
+### Control por horario
+
+Si la plantilla es **por horario** (por ejemplo, "cada 2 h"), cada control queda con su hora
+(**Ahora** la pone) y arriba ves **Próximo control: 12:30**, contado desde el último control. Si
+se pasa la hora, aparece **⏰ Control atrasado** en el lote y en su tarjeta de **En control**,
+sin tener que tocar nada. Un control nuevo trae la hora actual; si la corregís, el próximo se
+recalcula. Si el turno pasa la medianoche, la app lo entiende (una hora menor que la anterior es
+del día siguiente).
+
+<img src="img/22-horario.png" alt="Próximo control por horario" width="300">
+
 ## 4. Control final
 
 Antes del despacho, revisá cada unidad con lo que pida la plantilla. **✓ Todo OK** marca
@@ -203,6 +214,8 @@ En el editor:
   línea (equipo, inductora, turno…). Cada dato es texto, **lista de opciones** (escritas
   separadas por coma), número o fecha, y puede ser obligatorio. Sale en la cabecera del lote y
   en el PDF.
+- **Frecuencia del control en línea**: **por unidad** (un control por pallet, caja…) o **por
+  horario**, cada tantas horas (se aceptan decimales: 1,5 = cada 1 h 30 min).
 - **Ítems del control en línea y del control final**, cada uno de un tipo:
   - **OK / NOK**, y si permite marcarlo como *reprocesado*.
   - **Medición**: unidad, cuántas lecturas por unidad y la **tolerancia**: fija (mínimo y máximo

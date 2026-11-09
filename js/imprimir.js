@@ -106,7 +106,8 @@ var Imprimir = (function () {
         if (u.obs) fila += '<tr><td></td><td colspan="' + (columnas(p.linea) + 2) + '" class="i-obs">↳ ' + esc(u.obs) + '</td></tr>';
         return fila;
       }).join('');
-      linea = '<h3>Control en línea · ' + l.linea.length + ' ' + esc(String(l.linea.length === 1 ? p.unidad : p.unidades).toLowerCase()) + '</h3>' +
+      linea = '<h3>Control en línea · ' + l.linea.length + ' ' + esc(String(l.linea.length === 1 ? p.unidad : p.unidades).toLowerCase()) +
+        (Reglas.textoFrecuencia(p) ? ' · ' + esc(Reglas.textoFrecuencia(p)) : '') + '</h3>' +
         '<table class="i-tabla i-chica"><thead><tr><th rowspan="2">#</th><th rowspan="2">' + esc(p.unidad) + '</th><th rowspan="2">Hora</th>' +
         hl.arriba + '</tr><tr>' + hl.abajo + '</tr></thead><tbody>' + filasLinea + '</tbody></table>';
     }

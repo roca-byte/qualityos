@@ -15,6 +15,9 @@
  * La plantilla también puede pedir DATOS DEL LOTE propios (p.cabecera): equipo, inductora,
  * turno… Cada uno es texto, lista de opciones, número o fecha, y se guarda en cab.extra[id].
  *
+ * El control en línea es POR UNIDAD (uno por pallet, caja…) o POR HORARIO ("cada 2 h desde el
+ * último control"), según p.frecuencia = { modo: 'unidad' | 'horario', cadaMin }.
+ *
  * Valores guardados por unidad (pallet, caja, muestra…): u.v[itemId]
  *   okNok: true | false | null      medicion: ['10.4', '', …] (una por lectura)
  *   texto / fecha: 'texto' | 'AAAA-MM-DD'
@@ -266,6 +269,7 @@ var Reglas = (function () {
     alimentos: {
       rubro: 'Alimentos',
       nombre: 'Envasado de alimentos', unidad: 'Muestra', unidades: 'Muestras', cantidad: 'kg',
+      frecuencia: { modo: 'horario', cadaMin: 120 },
       cabecera: [dato('equipo', 'Envasadora', 'texto'), TURNO],
       linea: [med('peso', 'Peso neto', 'g', 5, 'lote'), med('temp', 'Temperatura del producto', '°C', 1, 'lote', null, true),
         ok('metales', 'Detector de metales', false), ok('sellado', 'Sellado / cierre'),
@@ -328,6 +332,60 @@ var Reglas = (function () {
   function textoDatos(p, cab) {
     return datosLote(p, cab).filter(function (x) { return x.valor; })
       .map(function (x) { return x.nombre + ': ' + (x.tipo === 'fecha' ? fechaLarga(x.valor) : x.valor); });
+  }
+
+  // ───────────────────── Control en línea por horario ─────────────────────
+  // Por horario, cada control lleva su hora (HH:MM) y el próximo toca "cada X desde el último".
+  // La hora no guarda la fecha: se cuenta desde la fecha del lote y, si un control tiene una hora
+  // menor que el anterior, se entiende que pasó la medianoche (turno noche).
+
+  function frecuencia(p) {
+    var f = (p && p.frecuencia) || {};
+    var n = Number(f.cadaMin);
+    return f.modo === 'horario' && n > 0 ? { modo: 'horario', cadaMin: Math.round(n) } : { modo: 'unidad', cadaMin: 0 };
+  }
+
+  // 120 → "cada 2 h"; 90 → "cada 1 h 30 min"; 45 → "cada 45 min".
+  function textoFrecuencia(p) {
+    var f = frecuencia(p);
+    if (f.modo !== 'horario') return '';
+    var h = Math.floor(f.cadaMin / 60), m = f.cadaMin % 60;
+    return 'cada ' + (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
+  }
+
+  function minutosDe(hora) {
+    var m = String(hora || '').match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+  }
+  function horaDe(min) {
+    var t = ((min % 1440) + 1440) % 1440;
+    return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+  }
+
+  // Cuándo toca el próximo control de un lote en control por horario.
+  // null si el lote no es por horario o ya se dictaminó; { primero: true } si todavía no hay
+  // ningún control con hora; si no { cuando: Date, hora: 'HH:MM', fecha: 'AAAA-MM-DD' }.
+  function proximoControl(lote) {
+    var f = frecuencia(lote.plantilla);
+    if (f.modo !== 'horario' || lote.estado !== 'activo') return null;
+    var dia = 0, previo = -1, ultimo = null;
+    (lote.linea || []).forEach(function (u) {
+      var m = minutosDe(u.hora);
+      if (isNaN(m)) return;
+      if (previo >= 0 && m < previo) dia++;
+      previo = m;
+      ultimo = { dia: dia, min: m };
+    });
+    if (!ultimo) return { primero: true };
+    var p = String(lote.cab.fecha || hoy()).split('-').map(Number);
+    var cuando = new Date(p[0], p[1] - 1, p[2] + ultimo.dia, 0, ultimo.min + f.cadaMin);
+    return { cuando: cuando, hora: horaDe(ultimo.min + f.cadaMin), fecha: hoy(cuando) };
+  }
+
+  // ¿Ya pasó la hora del próximo control?
+  function controlAtrasado(lote, ahora) {
+    var p = proximoControl(lote);
+    return !!(p && p.cuando && (ahora || new Date()) > p.cuando);
   }
 
   // ───────────────────── Catálogo de productos ─────────────────────
@@ -431,7 +489,7 @@ var Reglas = (function () {
   // ¿Cambió QUÉ se controla? (no cuenta el nombre ni la codificación). Si cambió, la norma
   // pide una versión nueva del registro.
   function cambioContenido(a, b) {
-    var clave = function (p) { return JSON.stringify([p.unidad, p.unidades, p.cantidad, p.linea, p.final, p.cabecera || []]); };
+    var clave = function (p) { return JSON.stringify([p.unidad, p.unidades, p.cantidad, p.linea, p.final, p.cabecera || [], frecuencia(p)]); };
     return clave(a) !== clave(b);
   }
 
@@ -697,6 +755,7 @@ var Reglas = (function () {
   return {
     TIPOS: TIPOS, EJEMPLOS: EJEMPLOS, TIPOS_DATO: TIPOS_DATO,
     datosLote: datosLote, datosFaltantes: datosFaltantes, textoDatos: textoDatos,
+    frecuencia: frecuencia, textoFrecuencia: textoFrecuencia, proximoControl: proximoControl, controlAtrasado: controlAtrasado,
     productos: productos, buscarProducto: buscarProducto, itemsConRango: itemsConRango, valoresDeProducto: valoresDeProducto,
     productoDesdeLote: productoDesdeLote, validarProducto: validarProducto,
     hoy: hoy, fechaLarga: fechaLarga, numero: numero, copia: copia, nuevoId: nuevoId,

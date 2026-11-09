@@ -234,6 +234,9 @@ body.en-acceso {
 @media (prefers-reduced-motion: reduce) { .acceso-marca, .acceso-tarjeta, .punto { animation: none; } }
 #imprimir { display: none; }
 
+/* ── Control por horario ── */
+.prox-control { margin: 0 0 10px; padding: 8px 10px; border-radius: var(--r); background: var(--surface2); border: 1px solid var(--border); }
+
 /* ── No conformidades ── */
 .fila3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 8px; }
 .fila3 > * { min-width: 0; }

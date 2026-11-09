@@ -194,6 +194,19 @@ function sembrarLotes() {
   await page.click('.lote-item:has-text("Y-2611-031")');
   await page.waitForSelector('#cl-1');
   await foto(page, '17-lote-alimentos', '#cl-1');
+  // Control por horario: un lote nuevo de yogur (su plantilla es cada 2 h) después del primer control.
+  await page.click('[data-act=inicio]');
+  await page.click('button[data-tab="activos"]');   // venía del Historial
+  await page.click(boton('+ Nuevo lote'));
+  await page.fill('input[name=prod]', 'Yogur frutilla 190 g');
+  await page.press('input[name=prod]', 'Enter');
+  await page.waitForSelector('text=Completado desde el catálogo');
+  await page.fill('input[name=lote]', 'Y-2611-045');
+  await page.selectOption('[name="dato-turno"]', 'Mañana');
+  await page.click(boton('Crear lote'));
+  await page.click('#cl-0 [data-act="hora"]');
+  await page.waitForSelector('#prox-control >> text=Próximo control');
+  await recorte(page, '22-horario', '#prox-control', '#cl-0');
   await ctx.close();
 
   // ── Recorrido animado: crear, controlar y dictaminar un lote ──

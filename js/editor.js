@@ -66,6 +66,17 @@ var Editor = (function () {
       '<label class="inline"><input type="checkbox" name="obligatorio"' + (it.obligatorio ? ' checked' : '') + '> Obligatorio para crear el lote</label></div>';
   }
 
+  // Cómo se hace el control en línea: uno por unidad, o por horario cada X horas.
+  function seccionFrecuencia(p) {
+    var f = Reglas.frecuencia(p);
+    return '<h3>Frecuencia del control en línea</h3>' +
+      '<div class="fila2"><label>Se controla<select name="p-frecuencia" data-act-change="editor">' +
+      opciones([['unidad', 'Por unidad (cada pallet, caja…)'], ['horario', 'Por horario (cada X horas)']], f.modo) + '</select></label>' +
+      (f.modo === 'horario' ? '<label>Cada (horas)<input name="p-cadaHoras" inputmode="decimal" value="' +
+        esc(String(Math.round(f.cadaMin / 60 * 100) / 100).replace('.', ',')) + '" placeholder="2"></label>' : '') + '</div>' +
+      (f.modo === 'horario' ? '<p class="ayuda">Cada control queda con su hora; la app avisa cuándo toca el próximo (desde el último) y si se atrasó.</p>' : '');
+  }
+
   // Codificación del registro (ISO 9001, 7.5): código, versión, vigencia, quién elaboró y
   // aprobó, y el historial de versiones (solo lectura: lo completa la app al guardar).
   function htmlDoc(doc, cambio) {
@@ -102,7 +113,10 @@ var Editor = (function () {
       '(equipo, inductora, turno…). Sale en la cabecera del lote y en el PDF.</p>' +
       (p.cabecera || []).map(function (it, i) { return htmlDato(it, i, p.cabecera.length); }).join('') +
       '<button type="button" class="btn" data-act="item-agregar" data-sec="cabecera">+ Dato del lote</button>' +
-      seccion('linea', 'Control en línea', 'Lo que se revisa mientras la línea produce, unidad por unidad.') +
+      seccionFrecuencia(p) +
+      seccion('linea', 'Control en línea', Reglas.frecuencia(p).modo === 'horario'
+        ? 'Lo que se revisa mientras la línea produce, en cada control por horario.'
+        : 'Lo que se revisa mientras la línea produce, unidad por unidad.') +
       seccion('final', 'Control final', 'Lo que se revisa antes del despacho. Los obligatorios tienen que estar completos para dictaminar.') +
       '<p class="ayuda">Los lotes ya creados no cambian: cada uno guarda la plantilla con la que se hizo.</p>' +
       '<div class="acciones"><button type="button" class="btn" data-act="config">Cancelar</button>' +
@@ -119,6 +133,11 @@ var Editor = (function () {
     p.unidades = val('p-unidades');
     p.cantidad = val('p-cantidad');
     p.cantFinal = Math.max(0, Math.min(200, parseInt(val('p-cantFinal'), 10) || 0));
+    if (val('p-frecuencia') === 'horario') {
+      // Si recién se eligió "por horario" todavía no está el campo de horas: 2 h por defecto.
+      var horas = f.querySelector('[name="p-cadaHoras"]') ? parseFloat(val('p-cadaHoras').replace(',', '.')) : 2;
+      p.frecuencia = { modo: 'horario', cadaMin: Math.round((horas > 0 ? horas : 2) * 60) };
+    } else p.frecuencia = { modo: 'unidad' };
     p.doc = { codigo: val('d-codigo'), version: val('d-version'), vigencia: val('d-vigencia'),
       elaboro: val('d-elaboro'), aprobo: val('d-aprobo'), historial: (anterior.doc && anterior.doc.historial) || [] };
     // El motivo del cambio no es parte de la plantilla: app.js lo pasa al historial al guardar.

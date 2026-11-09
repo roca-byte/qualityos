@@ -359,7 +359,8 @@
       '<span class="li-num">' + esc(c.lote) + '</span>' +
       '<span class="li-prod">' + esc(c.prod) + (c.cliente ? ' · ' + esc(c.cliente) : '') + '</span>' +
       '<span class="li-meta">' + esc(Reglas.fechaLarga(c.fecha)) + (c.linea ? ' · ' + esc(c.linea) : '') +
-      ' · CF ' + (r.aprobados + r.retenidos) + '/' + (r.aprobados + r.retenidos + r.pendientes) + '</span>' +
+      ' · CF ' + (r.aprobados + r.retenidos) + '/' + (r.aprobados + r.retenidos + r.pendientes) +
+      (Reglas.controlAtrasado(d) ? ' · <b class="txt-nok">⏰ control atrasado</b>' : '') + '</span>' +
       '<span class="li-estado">' + esc(ESTADOS[d.estado] || d.estado) + (l.pendiente ? ' · ⏳' : '') + '</span></button>';
   }
 
@@ -713,11 +714,25 @@
     var lista = sec === 'linea' ? d.linea : d.final.unidades;
     if (!p[sec].length) return '';
     var titulo = sec === 'linea' ? 'Control en línea' : 'Control final';
-    return '<section class="tarjeta"><h3>' + titulo + ' <small>' + lista.length + ' ' + esc(nombreUnidad(p, lista.length)) + '</small></h3>' +
+    var frec = sec === 'linea' ? Reglas.textoFrecuencia(p) : '';
+    return '<section class="tarjeta"><h3>' + titulo + ' <small>' + lista.length + ' ' + esc(nombreUnidad(p, lista.length)) +
+      (frec ? ' · ' + esc(frec) : '') + '</small></h3>' +
+      (sec === 'linea' && frec ? '<p id="prox-control" class="prox-control">' + textoProximo(d) + '</p>' : '') +
       (sec === 'final' && p.cantidad ? '<label>Cantidad por ' + esc(nombreUnidad(p, 1)) + ' (' + esc(p.cantidad) + ')' +
         '<input class="corto" inputmode="decimal" data-sec="cf" data-i="0" data-campo="cantPorUnidad" value="' + esc(d.final.cantPorUnidad) + '"></label>' : '') +
       lista.map(function (u, i) { return cardUnidad(sec, d, u, i); }).join('') +
       '<button type="button" class="btn" data-act="agregar-unidad" data-sec="' + sec + '">+ ' + esc(p.unidad) + '</button></section>';
+  }
+
+  // Control por horario: cuándo toca el próximo, o que ya está atrasado.
+  function textoProximo(d) {
+    var p = Reglas.proximoControl(d);
+    if (!p) return '';
+    if (p.primero) return '⏰ Hacé el primer control: cada uno queda con su hora y el próximo toca ' + esc(Reglas.textoFrecuencia(d.plantilla)) + '.';
+    var cuando = esc(p.hora) + (p.fecha !== Reglas.hoy() ? ' del ' + esc(Reglas.fechaLarga(p.fecha).slice(0, 5)) : '');
+    return Reglas.controlAtrasado(d)
+      ? '<b class="txt-nok">⏰ Control atrasado</b>: tocaba a las ' + cuando + '.'
+      : 'Próximo control: <b>' + cuando + '</b>';
   }
 
   function seccionHallazgos(d) {
@@ -927,6 +942,7 @@
         u.v[id] = ls;
       } else u.v[id] = v;
     }, false);
+    if (campo === 'hora') { var px = document.getElementById('prox-control'); if (px) px.innerHTML = textoProximo(Store.lote(ui.loteId).datos); }
     if (sec === 'cf' || campo) return;
     var d = Store.lote(ui.loteId).datos, u = unidadDe(d, sec, i), it = itemDe(d, sec, id);
     document.getElementById((sec === 'linea' ? 'cl-' : 'cf-') + i).className = 'pcard e-' + estadoUnidad(sec, d, u);
@@ -1202,6 +1218,11 @@
       cambiarLote(function (d) {
         var lista = sec === 'linea' ? d.linea : d.final.unidades;
         var nueva = Reglas.nuevaUnidad(lista.length + 1);
+        // Por horario, cada control nuevo queda con la hora en que se hace (se puede corregir).
+        if (sec === 'linea' && Reglas.frecuencia(d.plantilla).modo === 'horario') {
+          var t = new Date();
+          nueva.hora = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+        }
         // Los datos escritos (lote, código, fechas) suelen repetirse: se copian de la anterior.
         var ult = lista[lista.length - 1];
         if (ult && sec === 'linea') d.plantilla.linea.forEach(function (it) {
@@ -1583,6 +1604,14 @@
   window.addEventListener('offline', estadoNube);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) programarSync(0); });
   setInterval(function () { if (!document.hidden) sincronizar(); }, 60000);
+  // Control por horario: el aviso de "atrasado" aparece solo, sin tocar nada. En la lista se
+  // redibuja; en el lote solo el aviso (redibujar todo sacaría el foco del campo que se edita).
+  setInterval(function () {
+    if (document.hidden || !perfil()) return;
+    if (ui.pantalla === 'inicio' && ui.tab === 'activos') dibujar();
+    var el = document.getElementById('prox-control'), l = ui.pantalla === 'lote' && Store.lote(ui.loteId);
+    if (el && l) el.innerHTML = textoProximo(l.datos);
+  }, 30000);
 
   arrancar();
 })();
