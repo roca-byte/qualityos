@@ -23,8 +23,7 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
   en ⚙, registro mensual para imprimir e importación del respaldo de la app individual.
   Cualquiera de Calidad cierra (pedido del usuario). Ver "No conformidades" en `docs/DISENO.md`.
   La app individual `calidad-no-conformidades` sigue aparte, con código propio.
-  **Pendiente para publicarla:** aplicar `supabase/migrations/0005_no_conformidades.sql` en el
-  proyecto de Supabase (SQL Editor) antes de subir la app nueva a GitHub Pages.
+  Publicada el 09/11/2026: migración 0005 aplicada en Supabase y app en GitHub Pages (sw v14).
 
 ## Próximo
 
