@@ -533,6 +533,7 @@
       '<label>Línea<input name="linea" list="lineas" value="' + esc(c.linea || '') + '"></label>' +
       '<datalist id="lineas">' + lineas.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
       '<label>Fecha<input name="fecha" type="date" value="' + esc(c.fecha || '') + '"></label>' +
+      camposDatos(p, c.extra || {}) +
       (conRango.length ? '<h3>Rangos de este lote</h3>' + conRango.map(function (it) {
         var r = rangos[it.id] || {}, u = it.unidad ? ' (' + esc(it.unidad) + ')' : '';
         return '<div class="fila2"><label>' + esc(it.nombre) + ': mín.' + u + '<input name="min-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.min || '') + '"></label>' +
@@ -544,6 +545,28 @@
       '<button class="btn primario" type="submit">' + (l ? 'Guardar' : 'Crear lote') + '</button></div>' +
       '</form></section>';
   };
+
+  // Datos del lote que pide la plantilla (inductora, turno…). Se llaman "dato-<id>".
+  function camposDatos(p, extra) {
+    return (p.cabecera || []).map(function (d) {
+      var v = extra[d.id] === undefined || extra[d.id] === null ? '' : String(extra[d.id]);
+      var etq = esc(d.nombre) + (d.obligatorio ? ' *' : '');
+      var req = d.obligatorio ? ' required' : '';
+      if (d.tipo === 'lista') {
+        var ops = d.opciones.slice();
+        if (v && ops.indexOf(v) < 0) ops.push(v);   // un valor que ya no está en la lista se conserva
+        return '<label>' + etq + '<select name="dato-' + esc(d.id) + '"' + req + '>' +
+          opciones([{ v: '', t: '—' }].concat(ops.map(function (o) { return { v: o, t: o }; })), v) + '</select></label>';
+      }
+      var tipo = d.tipo === 'fecha' ? ' type="date"' : d.tipo === 'numero' ? ' inputmode="decimal"' : '';
+      return '<label>' + etq + '<input name="dato-' + esc(d.id) + '"' + tipo + req + ' value="' + esc(v) + '"></label>';
+    }).join('');
+  }
+  function leerDatos(f) {
+    var extra = {};
+    [].forEach.call(f.querySelectorAll('[name^="dato-"]'), function (el) { extra[el.name.slice(5)] = el.value.trim(); });
+    return extra;
+  }
 
   // "Envasado de líquidos (REG-01 v03)": nombre de la plantilla con su codificación.
   function nombreRegistro(p) {
@@ -569,7 +592,7 @@
       '<button class="btn chico" data-act="inicio">← Lotes</button>' +
       '<span class="li-estado estado-' + esc(d.estado) + '">' + esc(ESTADOS[d.estado]) + '</span></div>' +
       '<h2>' + esc(c.lote) + ' · ' + esc(c.prod) + '</h2>' +
-      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), nombreRegistro(d.plantilla)].concat(textoRangos(d))
+      '<p class="meta">' + [c.cliente, c.linea, Reglas.fechaLarga(c.fecha), nombreRegistro(d.plantilla)].concat(Reglas.textoDatos(d.plantilla, c), textoRangos(d))
         .filter(Boolean).map(esc).join(' · ') + '</p>' +
       (ed ? '<button class="btn chico" data-act="editar-cab">Editar datos</button>' : '') +
       (!ed ? '<p class="ayuda">Lote dictaminado: solo coordinación lo puede modificar.</p>' : '') + '</section>';
@@ -1154,7 +1177,11 @@
     },
     'item-agregar': function (b) {
       leerEditor();
-      ui.edit[b.dataset.sec].push({ id: Reglas.nuevoId(), nombre: '', tipo: 'okNok', reproceso: true, obligatorio: true });
+      var sec = b.dataset.sec;
+      ui.edit[sec] = ui.edit[sec] || [];   // plantillas de antes no tienen "cabecera"
+      ui.edit[sec].push(sec === 'cabecera'
+        ? { id: Reglas.nuevoId(), nombre: '', tipo: 'texto', opciones: [], obligatorio: false }
+        : { id: Reglas.nuevoId(), nombre: '', tipo: 'okNok', reproceso: true, obligatorio: true });
       dibujar();
       var items = document.querySelectorAll('.ed-item[data-sec="' + b.dataset.sec + '"]');
       items[items.length - 1].querySelector('[name="nombre"]').focus();
@@ -1221,8 +1248,12 @@
       });
       var cab = {
         prod: f.prod.value.trim(), lote: f.lote.value.trim(), cliente: Reglas.normalizarCliente(f.cliente.value),
-        linea: f.linea.value.trim(), fecha: f.fecha.value, checker: f.checker.value.trim(), rangos: rangos
+        linea: f.linea.value.trim(), fecha: f.fecha.value, checker: f.checker.value.trim(), rangos: rangos,
+        extra: leerDatos(f)
       };
+      // El navegador ya exige los obligatorios (required); esto cubre un formulario armado distinto.
+      var faltan = Reglas.datosFaltantes(plantilla, cab);
+      if (faltan.length) return aviso('Falta completar: ' + faltan.join(', '));
       ui.borrador = null;
       if (l) {
         cambiarLote(function (d) { d.cab = cab; }, false);
@@ -1356,7 +1387,7 @@
       // Se guarda lo ya escrito y se redibuja con los rangos de la plantilla elegida.
       var f = s.form;
       ui.borrador = { plantillaId: s.value, prod: f.prod.value, lote: f.lote.value, cliente: f.cliente.value,
-        linea: f.linea.value, fecha: f.fecha.value, checker: f.checker.value, rangos: {} };
+        linea: f.linea.value, fecha: f.fecha.value, checker: f.checker.value, rangos: {}, extra: leerDatos(f) };
       dibujar();
       return;
     }

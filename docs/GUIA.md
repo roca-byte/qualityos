@@ -55,6 +55,8 @@ En la pantalla principal ves los lotes **En control** y el **Historial**. Tocá 
 - **Plantilla de control**: qué vas a controlar (si tu empresa tiene más de una, elegí la del
   producto o la línea).
 - **Producto** y **N° de lote** son obligatorios.
+- **Datos del lote** que pide la plantilla: por ejemplo la **inductora** y el **turno**. Los
+  marcados con * son obligatorios.
 - **Rangos de este lote**: las mediciones que dependen del producto (por ejemplo el peso por
   pico) piden acá su mínimo y máximo. Con eso la app marca lo que sale de rango.
 - **Cantidad del control final**: cuántas unidades (pallets, cajas, muestras…) vas a revisar al
@@ -192,6 +194,10 @@ En el editor:
 
 - **Qué se controla**: el nombre de la unidad (Pallet, Caja, Muestra…) en singular y plural, y
   si lleva **cantidad** (L, kg, unid.) para sumar lo aprobado y lo retenido.
+- **Datos del lote**: lo que se completa al crear el lote además de producto, lote, cliente y
+  línea (equipo, inductora, turno…). Cada dato es texto, **lista de opciones** (escritas
+  separadas por coma), número o fecha, y puede ser obligatorio. Sale en la cabecera del lote y
+  en el PDF.
 - **Ítems del control en línea y del control final**, cada uno de un tipo:
   - **OK / NOK**, y si permite marcarlo como *reprocesado*.
   - **Medición**: unidad, cuántas lecturas por unidad y la **tolerancia**: fija (mínimo y máximo

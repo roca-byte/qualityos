@@ -119,6 +119,8 @@ function sembrarLotes() {
   await page.fill('input[name="min-peso"]', '10');
   await page.fill('input[name="max-peso"]', '11');
   await page.fill('input[name=cantFinal]', '4');
+  await page.selectOption('[name="dato-inductora"]', 'Inductora 2');
+  await page.selectOption('[name="dato-turno"]', 'Mañana');
   await foto(page, '04-nuevo-lote');
 
   await page.click(':nth-match(.lote-item, 1)').catch(() => {});
@@ -209,6 +211,8 @@ function sembrarLotes() {
   await tipear('input[name="min-peso"]', '10');
   await tipear('input[name="max-peso"]', '11');
   await page.fill('input[name=cantFinal]', '2');
+  await page.selectOption('[name="dato-inductora"]', 'Inductora 2');
+  await page.selectOption('[name="dato-turno"]', 'Mañana');
   await page.waitForTimeout(400);
   await page.click(boton('Crear lote'));
   await page.waitForTimeout(700);
