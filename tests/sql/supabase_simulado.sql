@@ -9,7 +9,11 @@ end $$;
 create schema auth;
 grant usage on schema auth to anon, authenticated;
 grant usage on schema public to anon, authenticated;
-create table auth.users (id uuid primary key, email text);
+create table auth.users (id uuid primary key, email text, encrypted_password text);
+-- En Supabase pgcrypto vive en el esquema "extensions" (la firma verifica la clave con crypt()).
+create schema if not exists extensions;
+create extension if not exists pgcrypto schema extensions;
+grant usage on schema extensions to anon, authenticated;   -- como en Supabase
 create function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
 $$;

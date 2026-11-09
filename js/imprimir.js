@@ -144,6 +144,8 @@ var Imprimir = (function () {
       '<th>Fecha</th><td>' + esc(f.fechaDictamen || '—') + '</td></tr>' +
       (l.cierreForzado ? '<tr><td colspan="6">⚠ Dictaminado con ' + esc(l.cierreForzado.faltantes) + ' ' + esc(p.unidades.toLowerCase()) +
         ' sin completar, autorizado por ' + esc(l.cierreForzado.por) + '</td></tr>' : '') +
+      // Firma electrónica del dictamen (vigente). Sin ella, el registro dice que está pendiente.
+      (f.dictamen ? '<tr><th>Firma electrónica</th><td colspan="5">' + (lote.firma ? esc(Reglas.textoFirma(lote.firma)) : '<b>PENDIENTE DE FIRMA</b>') + '</td></tr>' : '') +
       '<tr><th>Elaboró</th><td>' + esc(doc.elaboro || '') + '</td><th>Aprobó</th><td colspan="3">' + esc(doc.aprobo || '') + '</td></tr></table>';
 
     return '<div class="informe">' + encabezado + datos + linea + final + obs + dictamen +
@@ -181,7 +183,9 @@ var Imprimir = (function () {
       return '<tr><td>' + esc(n.numero || 'sin número') + '</td><td>' + esc(d.ac || '—') + '</td><td>' + esc(d.resp || '—') + '</td>' +
         '<td>' + esc(Reglas.fechaLarga(d.plazo) || '—') + '</td><td>' + esc(Reglas.fechaLarga(d.cierre) || '—') + '</td>' +
         '<td>' + esc(est(d)) + (d.cerradaPor ? '<br><small>' + esc(d.cerradaPor) + '</small>' : '') + '</td>' +
-        '<td>' + esc(Reglas.EFICACIA[d.eficacia] || '—') + '</td></tr>';
+        '<td>' + esc(Reglas.EFICACIA[d.eficacia] || '—') + '</td>' +
+        '<td>' + (n.firma ? '✍ ' + esc(n.firma.nombre) + '<br><small>' + esc(Reglas.fechaHora(n.firma.cuando)) + ' · ' + esc(n.firma.codigo) + '</small>'
+          : d.estado === 'cerrada' ? 'Pendiente' : '—') + '</td></tr>';
     }).join('') || vacio;
     return '<div class="informe">' +
       '<table class="i-cab"><tr><td class="i-empresa">' + esc(empresa) + '</td>' +
@@ -197,7 +201,7 @@ var Imprimir = (function () {
       '<th>Gravedad</th><th>Descripción</th><th>Cantidad NC / total</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>' +
       '<h3>Acciones, cierre y verificación de eficacia (ISO 9001, 10.2)</h3>' +
       '<table class="i-tabla i-chica"><thead><tr><th>N°</th><th>Acción correctiva / disposición</th><th>Responsable</th><th>Plazo</th>' +
-      '<th>Cierre</th><th>Estado</th><th>Eficacia</th></tr></thead><tbody>' + acciones + '</tbody></table>' +
+      '<th>Cierre</th><th>Estado</th><th>Eficacia</th><th>Firma del cierre</th></tr></thead><tbody>' + acciones + '</tbody></table>' +
       '<table class="i-tabla i-firma"><tr><th>Inspector de Calidad</th><td></td><th>Coordinación de Calidad</th><td></td>' +
       '<th>Revisión SGC / Gerencia</th><td></td></tr></table>' +
       '<div class="i-pie">QualityOS · ' + esc(empresa) + '</div></div>';

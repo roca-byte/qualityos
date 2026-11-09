@@ -162,8 +162,8 @@ var Nube = (function () {
         else { Store.conflicto(p.id, fila, p.tipo); res.conflictos++; }
       }
 
-      res.bajados = await bajar('lotes', 'lote', 'id, version, borrado, datos, modificado', empresaId) +
-        await bajar('no_conformidades', 'nc', 'id, numero, version, borrado, datos, modificado', empresaId);
+      res.bajados = await bajar('lotes', 'lote', 'id, version, borrado, datos, firma, modificado', empresaId) +
+        await bajar('no_conformidades', 'nc', 'id, numero, version, borrado, datos, firma, modificado', empresaId);
       return res;
     } finally {
       sincronizando = false;
@@ -189,10 +189,21 @@ var Nube = (function () {
     return filas.length;
   }
 
+  // Firma electrónica del dictamen (tipo 'lote') o del cierre de una NC (tipo 'nc'). La clave la
+  // verifica el servidor; sin señal no se puede firmar. "version" es la que el usuario está viendo.
+  async function firmar(tipo, id, version, clave) {
+    if (!hayRed()) throw new Error('Sin señal: la firma necesita conexión para verificar tu clave.');
+    var r = dato(await sb().rpc('firmar', { p_tipo: tipo, p_id: id, p_empresa: Store.perfil().empresaId, p_version: version, p_clave: clave }));
+    if (!r.ok) throw new Error(r.error);
+    Store.aplicarRemoto(r.fila, tipo);
+    Store.guardar();
+    return r.fila;
+  }
+
   // Busca en todo el historial del servidor (no solo lo que está en la tablet).
   async function buscarLotes(texto) {
     var q = sb().from('lotes')
-      .select('id, version, datos, modificado, estado, numero, producto, cliente, fecha')
+      .select('id, version, datos, firma, modificado, estado, numero, producto, cliente, fecha')
       .eq('empresa_id', Store.perfil().empresaId)
       .eq('borrado', false)
       .order('modificado', { ascending: false })
@@ -208,6 +219,6 @@ var Nube = (function () {
     misEmpresas: misEmpresas, puedoCrearEmpresas: puedoCrearEmpresas, crearEmpresa: crearEmpresa, guardarEmpresa: guardarEmpresa,
     cambiarMiNombre: cambiarMiNombre, miembros: miembros, invitar: invitar,
     quitarInvitacion: quitarInvitacion, cambiarMiembro: cambiarMiembro,
-    sincronizar: sincronizar, buscarLotes: buscarLotes
+    sincronizar: sincronizar, buscarLotes: buscarLotes, firmar: firmar
   };
 })();

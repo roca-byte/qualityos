@@ -85,6 +85,7 @@
       // r.subidos: una NC recién subida ya tiene número para mostrar.
       if (r && (r.bajados || r.conflictos || r.subidos) && ui.pantalla === 'inicio') dibujar();
       if (r && r.conflictos && ui.pantalla === 'nc' && ui.ncId && !Store.nc(ui.ncId)) ir('inicio', { tab: 'nc' });
+      if (r && (r.subidos || r.bajados)) refrescarFirma();
       if (r && r.conflictos && ui.pantalla === 'lote' && !Store.lote(ui.loteId)) ir('inicio');
       else if (r && r.conflictos && ui.pantalla === 'lote') dibujar();
     } catch (e) {
@@ -360,7 +361,8 @@
       '<span class="li-prod">' + esc(c.prod) + (c.cliente ? ' · ' + esc(c.cliente) : '') + '</span>' +
       '<span class="li-meta">' + esc(Reglas.fechaLarga(c.fecha)) + (c.linea ? ' · ' + esc(c.linea) : '') +
       ' · CF ' + (r.aprobados + r.retenidos) + '/' + (r.aprobados + r.retenidos + r.pendientes) +
-      (Reglas.controlAtrasado(d) ? ' · <b class="txt-nok">⏰ control atrasado</b>' : '') + '</span>' +
+      (Reglas.controlAtrasado(d) ? ' · <b class="txt-nok">⏰ control atrasado</b>' : '') +
+      (!l.remoto && Reglas.pendienteDeFirma('lote', d, l.firma) ? ' · <b class="txt-warn">✍ sin firmar</b>' : '') + '</span>' +
       '<span class="li-estado">' + esc(ESTADOS[d.estado] || d.estado) + (l.pendiente ? ' · ⏳' : '') + '</span></button>';
   }
 
@@ -402,7 +404,8 @@
       '<span class="li-num">' + esc(n.numero || 'NC nueva') + '</span>' +
       '<span class="li-prod">' + esc(d.tipo || d.desc) + (d.sev ? ' · ' + esc(d.sev) : '') + '</span>' +
       '<span class="li-meta">' + [Reglas.fechaLarga(d.fecha), d.lote, d.deteccion].filter(Boolean).map(esc).join(' · ') +
-      (vencida ? ' · <b class="txt-nok">plazo vencido</b>' : '') + '</span>' +
+      (vencida ? ' · <b class="txt-nok">plazo vencido</b>' : '') +
+      (Reglas.pendienteDeFirma('nc', d, n.firma) ? ' · <b class="txt-warn">✍ sin firmar</b>' : '') + '</span>' +
       '<span class="li-estado">' + esc(Reglas.NC_ESTADOS[d.estado]) + (n.pendiente ? ' · ⏳' : '') + '</span></button>';
   }
 
@@ -446,8 +449,37 @@
       (n ? '<div class="acciones">' +
         (abierta ? '<button class="btn" type="button" data-act="cerrar-nc">✓ Cerrar NC</button>' : '<button class="btn" type="button" data-act="reabrir-nc">Reabrir</button>') +
         (d.estado !== 'anulada' ? '<button class="btn peligro" type="button" data-act="anular-nc">Anular</button>' : '') + '</div>' : '') +
-      '</form></section>';
+      '</form>' + (n && d.estado === 'cerrada' ? bloqueFirma('nc', n) : '') + '</section>';
   };
+
+  // ───────────── Firma electrónica ─────────────
+  // Se firma el dictamen del lote y el cierre de la NC, con la clave en cada firma. La verifica el
+  // servidor, así que hace falta señal y que lo firmado ya esté subido (si no, se firmaría algo
+  // que el servidor todavía no tiene).
+  function bloqueFirma(tipo, obj) {
+    var cab = '<div id="firma-bloque" class="firma" data-tipo="' + tipo + '" data-id="' + esc(obj.id) + '">';
+    if (obj.firma) return cab + '<p class="firma-ok">✍ ' + esc(Reglas.textoFirma(obj.firma)) + '</p></div>';
+    var que = tipo === 'nc' ? 'el cierre' : 'el dictamen';
+    var p = perfil();
+    var cuerpo;
+    if (obj.pendiente) cuerpo = '<p class="ayuda">Se puede firmar cuando ' + que + ' esté subido (arriba: ☁ Al día).</p>';
+    else if (!Nube.hayRed()) cuerpo = '<p class="ayuda">Sin señal: la firma necesita conexión para verificar tu clave.</p>';
+    else cuerpo = '<form data-form="firmar" data-tipo="' + tipo + '" data-id="' + esc(obj.id) + '">' +
+      '<label>Firmar ' + que + ' como ' + esc(p.nombre || p.email) + ' (' + esc(ROLES[p.rol]) + '): tu clave' +
+      '<input name="clave" type="password" autocomplete="current-password" required></label>' +
+      (p.demo ? '<p class="ayuda">En la demo, la clave es <b>' + esc(Demo.CLAVE) + '</b>.</p>' : '') +
+      '<button class="btn primario" type="submit">✍ Firmar</button></form>' +
+      '<p class="ayuda">Se pide tu clave en cada firma. Queda quién firmó, cuándo, qué significa y una huella del contenido: si después se modifica, la firma deja de valer y hay que volver a firmar.</p>';
+    return cab + '<p class="firma-pend"><b>Pendiente de firma.</b></p>' + cuerpo + '</div>';
+  }
+  // Después de sincronizar: el bloque pasa de "esperando que suba" a pedir la clave (sin tocar el
+  // resto de la pantalla, y sin pisar el campo de la clave si la persona ya la está escribiendo).
+  function refrescarFirma() {
+    var el = document.getElementById('firma-bloque');
+    if (!el || el.contains(document.activeElement)) return;
+    var obj = el.dataset.tipo === 'nc' ? Store.nc(el.dataset.id) : Store.lote(el.dataset.id);
+    if (obj) el.outerHTML = bloqueFirma(el.dataset.tipo, obj);
+  }
 
   function leerFormNc(f) {
     var d = {};
@@ -780,6 +812,7 @@
         ' · ' + esc(f.fechaDictamen || '') + '</p>' +
         (d.cierreForzado ? '<p class="ayuda">⚠ Con ' + esc(d.cierreForzado.faltantes) + ' ' + esc(nombreUnidad(p, d.cierreForzado.faltantes)) +
           ' sin completar, autorizado por ' + esc(d.cierreForzado.por) + '</p>' : '') +
+        bloqueFirma('lote', l) +
         (esSuperior() ? '<button class="btn" data-act="reabrir">Reabrir lote</button>' : '');
     }
     return '<section class="tarjeta"><h3>Dictamen</h3>' + resumen + desvios + seccionNcDelLote(l) + acciones +
@@ -968,7 +1001,7 @@
       d.final.dictaminadoRol = ROLES[p.rol];
       d.cierreForzado = falt.length ? { fecha: new Date().toISOString(), por: p.nombre || p.email, faltantes: falt.length } : null;
     });
-    aviso('Dictamen: ' + txt);
+    aviso('Dictamen: ' + txt + '. Firmalo cuando esté subido.');
     programarSync(0);
   }
 
@@ -1140,7 +1173,7 @@
     'cerrar-nc': function () {
       if (!confirm('¿Cerrar la NC? Queda registrado que la cerraste vos, con fecha de hoy.')) return;
       if (guardarNc(document.querySelector('[data-form="nc"]'), { estado: 'cerrada', cierre: Reglas.hoy(), cerradaPor: quienSoy() })) {
-        aviso('NC cerrada. Cuando puedas, verificá la eficacia.');
+        aviso('NC cerrada. Firmá el cierre y, cuando puedas, verificá la eficacia.');
         dibujar();
       }
     },
@@ -1499,6 +1532,23 @@
         dibujar();
       } catch (e) { aviso(e.message); }
     },
+    firmar: async function (f) {
+      var tipo = f.dataset.tipo, id = f.dataset.id;
+      var obj = tipo === 'nc' ? Store.nc(id) : Store.lote(id);
+      if (!obj) return;
+      if (obj.pendiente) return aviso('Todavía no se subió: esperá a que diga ☁ Al día.');
+      var boton = f.querySelector('[type=submit]');
+      esperando(boton, 'Firmando…');
+      try {
+        await Nube.firmar(tipo, id, obj.version, f.clave.value);
+        aviso('Firmado');
+        dibujar();
+      } catch (e) {
+        aviso(e.message);
+        boton.disabled = false; boton.textContent = '✍ Firmar';
+        f.clave.value = ''; f.clave.focus();
+      }
+    },
     producto: async function (f) {
       var x = leerProducto(f);
       var lista = Reglas.productos(config()).slice();
@@ -1600,8 +1650,8 @@
     }
   });
 
-  window.addEventListener('online', function () { estadoNube(); programarSync(0); });
-  window.addEventListener('offline', estadoNube);
+  window.addEventListener('online', function () { estadoNube(); refrescarFirma(); programarSync(0); });
+  window.addEventListener('offline', function () { estadoNube(); refrescarFirma(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) programarSync(0); });
   setInterval(function () { if (!document.hidden) sincronizar(); }, 60000);
   // Control por horario: el aviso de "atrasado" aparece solo, sin tocar nada. En la lista se

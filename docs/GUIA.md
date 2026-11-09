@@ -128,6 +128,23 @@ Calidad; Coordinación puede reabrirlo.
 En **Desvíos detectados** ves la lista de NOK del lote. Desde ahí se crean las
 **no conformidades** (ver el paso 6).
 
+### Firma electrónica
+
+Después de dictaminar, el lote queda **Pendiente de firma**. Cuando el dictamen ya se subió
+(arriba dice ☁ **Al día**), escribí **tu clave** y tocá **✍ Firmar**. La clave se pide en cada
+firma: es lo que demuestra que firmaste vos.
+
+<img src="img/23-firma.png" alt="Dictamen firmado" width="300">
+
+- La firma dice **quién** firmó (nombre y rol), **cuándo**, **qué significa** ("Dictamen:
+  APROBADO") y un **código de verificación**, que es una huella del contenido. Sale en el PDF.
+- Si el lote se modifica después (por ejemplo, Coordinación lo reabre), la firma **deja de
+  valer** y hay que volver a firmar. Las firmas anteriores quedan guardadas en el historial.
+- **Sin señal no se puede firmar**: la clave se verifica en el servidor. El dictamen queda
+  pendiente y se firma cuando vuelve la conexión.
+- En las listas, lo que falta firmar dice **✍ sin firmar**.
+- Es una **firma electrónica** (Ley 25.506), no una firma digital con certificado.
+
 **Imprimir / PDF** arma el registro del lote en una hoja A4. En el diálogo de impresión elegí
 *Guardar como PDF*.
 
@@ -157,7 +174,9 @@ El **plazo** se calcula solo en días hábiles desde la detección; si lo cambi�
 Cargá la acción correctiva y el responsable, y pasala a **En proceso** si corresponde.
 
 - **✓ Cerrar NC**: queda registrado quién la cerró y cuándo. Cualquiera de Calidad puede cerrarla.
+  Después se **firma el cierre** con la clave, igual que el dictamen de un lote.
 - Después del cierre, la **verificación de eficacia** (ISO 9001, 10.2): Eficaz o No eficaz.
+  Cargarla no invalida la firma del cierre.
 - **Anular**: para una NC cargada por error. Queda en el registro como anulada y no cuenta en
   los indicadores.
 

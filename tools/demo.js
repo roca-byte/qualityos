@@ -137,6 +137,13 @@ function sembrarLotes() {
   await page.click('.dict.ok');
   await page.waitForSelector('.dict-final');
   await foto(page, '09-dictaminado', 'section:has(.dict-final)');
+  // Firma electrónica del dictamen: se puede cuando ya subió; pide la clave.
+  await page.waitForFunction(() => Store.pendientes().length === 0, null, { timeout: 15000 });
+  await page.waitForSelector('#firma-bloque [name=clave]');
+  await page.fill('#firma-bloque [name=clave]', 'demo1234');
+  await page.click('#firma-bloque >> text=✍ Firmar');
+  await page.waitForSelector('.firma-ok');
+  await foto(page, '23-firma', '#firma-bloque');
 
   // No conformidades: se crean desde los desvíos del lote recién dictaminado.
   await page.click('summary:has-text("Desvíos detectados")');
