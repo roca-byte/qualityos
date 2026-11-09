@@ -46,6 +46,7 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
 - **Firma electrónica** (09/11/2026) — terminada. Se firma el dictamen del lote y el cierre de la
   NC, con la clave en cada firma; sin señal queda "pendiente de firma". Migración 0006. Ver
   "Firma electrónica" en `docs/DISENO.md`. Firma digital con certificado: fuera de alcance.
+  Publicada el 09/11/2026: migración 0006 aplicada en Supabase y app en GitHub Pages (sw v18).
 
 ## Próximo
 
