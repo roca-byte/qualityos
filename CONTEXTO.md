@@ -33,7 +33,8 @@ Indicaciones del usuario para próximas sesiones, en orden de prioridad. Leer ju
    - **Parte 1 · Datos del lote por plantilla** — hecha (09/11/2026). `p.cabecera` (texto,
      lista, número o fecha; obligatorio o no) → `cab.extra`. Ver "Plantillas de control" en
      `docs/DISENO.md`.
-   - **Parte 2 · Catálogo de productos** (⚙, **solo Administración**): nombre, código, plantilla,
+   - **Parte 2 · Catálogo de productos** — hecha (09/11/2026). Ver "Catálogo de productos" en
+     `docs/DISENO.md`. (⚙, **solo Administración**): nombre, código, plantilla,
      rangos por defecto, cantidad por unidad, unidades del control final y valores por defecto
      de los datos del lote. Al crear el lote, elegir el producto completa todo (editable). Es
      optativo: un producto que no está se escribe a mano. "Guardar como producto" al crear un

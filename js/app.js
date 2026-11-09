@@ -512,10 +512,26 @@
 
   // Formulario de cabecera: sirve para lote nuevo y para editar.
   // Al crear, se elige la plantilla; sus mediciones con tolerancia "por lote" piden acá su rango.
+  // Lo escrito en el formulario del lote nuevo, para no perderlo al redibujar (cambio de
+  // plantilla o de producto).
+  function borradorDe(f) {
+    var rangos = {};
+    [].forEach.call(f.querySelectorAll('[name^="min-"]'), function (inp) {
+      var id = inp.name.slice(4);
+      rangos[id] = { min: inp.value, max: f.querySelector('[name="max-' + id + '"]').value };
+    });
+    return Object.assign({}, ui.borrador || {}, {
+      plantillaId: f.plantilla ? f.plantilla.value : (ui.borrador || {}).plantillaId,
+      prod: f.prod.value, lote: f.lote.value, cliente: f.cliente.value, linea: f.linea.value, fecha: f.fecha.value,
+      checker: f.checker.value, rangos: rangos, extra: leerDatos(f), cantFinal: f.cantFinal ? f.cantFinal.value : undefined
+    });
+  }
+
   pantallas.nuevo = function () {
     var l = ui.loteId ? Store.lote(ui.loteId) : null;
     var ps = plantillasEmpresa();
-    var b = ui.borrador || {}; // lo tipeado antes de cambiar de plantilla
+    var prods = Reglas.productos(config());
+    var b = ui.borrador || {}; // lo tipeado antes de cambiar de plantilla o de producto
     var c = l ? l.datos.cab : Object.assign({ fecha: Reglas.hoy(), checker: perfil().nombre, rangos: {} }, b);
     var p = l ? l.datos.plantilla : (ps.filter(function (x) { return x.id === b.plantillaId; })[0] || ps[0]);
     var conRango = p.linea.concat(p.final).filter(function (it) { return it.tipo === 'medicion' && it.tolerancia === 'lote'; });
@@ -523,11 +539,15 @@
     var lineas = config().lineas || [];
     return '<section class="tarjeta"><h2>' + (l ? 'Datos del lote' : 'Nuevo lote') + '</h2>' +
       '<form data-form="cabecera">' +
+      // En un lote nuevo el producto va primero: si está en el catálogo, completa el resto.
+      (l ? '' : '<label>Producto *<input name="prod" required list="lista-productos" autocomplete="off" data-act-change="producto-lote" value="' + esc(c.prod || '') + '"></label>' +
+        '<datalist id="lista-productos">' + prods.map(function (x) { return '<option value="' + esc(x.nombre) + '">' + esc(x.codigo || '') + '</option>'; }).join('') + '</datalist>' +
+        (b.productoId ? '<p class="info">✓ Completado desde el catálogo: plantilla, rangos y datos del lote. Podés cambiar lo que haga falta.</p>' : '')) +
       (l ? '<p class="meta">Plantilla: ' + esc(p.nombre) + '</p>'
         : ps.length > 1 ? '<label>Plantilla de control<select name="plantilla" data-act-change="plantilla-lote">' +
             opciones(ps.map(function (x) { return { v: x.id, t: x.nombre }; }), p.id) + '</select></label>'
           : '<p class="meta">Plantilla: ' + esc(p.nombre) + '</p>') +
-      '<label>Producto *<input name="prod" required value="' + esc(c.prod || '') + '"></label>' +
+      (l ? '<label>Producto *<input name="prod" required value="' + esc(c.prod || '') + '"></label>' : '') +
       '<label>N° de lote *<input name="lote" required value="' + esc(c.lote || '') + '"></label>' +
       '<label>Cliente<input name="cliente" value="' + esc(c.cliente || '') + '"></label>' +
       '<label>Línea<input name="linea" list="lineas" value="' + esc(c.linea || '') + '"></label>' +
@@ -540,18 +560,24 @@
           '<label>' + esc(it.nombre) + ': máx.' + u + '<input name="max-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.max || '') + '"></label></div>';
       }).join('') : '') +
       '<label>Inspector de Calidad<input name="checker" value="' + esc(c.checker || '') + '"></label>' +
-      (l ? '' : '<label>Cantidad de ' + esc(nombreUnidad(p, 2)) + ' del control final<input name="cantFinal" type="number" min="0" max="200" value="' + esc(p.cantFinal === undefined ? 12 : p.cantFinal) + '"></label>') +
+      (l ? '' : '<label>Cantidad de ' + esc(nombreUnidad(p, 2)) + ' del control final<input name="cantFinal" type="number" min="0" max="200" value="' +
+        esc(b.cantFinal !== undefined && b.cantFinal !== '' ? b.cantFinal : p.cantFinal === undefined ? 12 : p.cantFinal) + '"></label>') +
+      // "Guardar como producto": para armar el catálogo sin tipear dos veces (solo Administración).
+      (!l && esAdmin() && !Reglas.buscarProducto(prods, c.prod) ? '<label class="inline"><input type="checkbox" name="guardarProducto"> ' +
+        'Guardar este producto en el catálogo (con su plantilla, rangos y datos)</label>' : '') +
       '<div class="acciones"><button class="btn" type="button" data-act="' + (l ? 'abrir' : 'inicio') + '" data-id="' + esc(ui.loteId || '') + '">Cancelar</button>' +
       '<button class="btn primario" type="submit">' + (l ? 'Guardar' : 'Crear lote') + '</button></div>' +
       '</form></section>';
   };
 
   // Datos del lote que pide la plantilla (inductora, turno…). Se llaman "dato-<id>".
-  function camposDatos(p, extra) {
+  // sinObligatorios: en la ficha del producto son valores por defecto, nada es obligatorio.
+  function camposDatos(p, extra, sinObligatorios) {
     return (p.cabecera || []).map(function (d) {
       var v = extra[d.id] === undefined || extra[d.id] === null ? '' : String(extra[d.id]);
-      var etq = esc(d.nombre) + (d.obligatorio ? ' *' : '');
-      var req = d.obligatorio ? ' required' : '';
+      var oblig = d.obligatorio && !sinObligatorios;
+      var etq = esc(d.nombre) + (oblig ? ' *' : '');
+      var req = oblig ? ' required' : '';
       if (d.tipo === 'lista') {
         var ops = d.opciones.slice();
         if (v && ops.indexOf(v) < 0) ops.push(v);   // un valor que ya no está en la lista se conserva
@@ -779,7 +805,7 @@
       '<p class="ayuda">La codificación del registro (código, versión, vigencia, quién elaboró y aprobó) va en cada plantilla de control.</p>' +
       '<label>Líneas (separadas por coma)<input name="lineas" value="' + esc((cfg.lineas || []).join(', ')) + '"></label>' +
       '<button class="btn primario" type="submit">Guardar configuración</button></form></section>' +
-      seccionPlantillas() + seccionConfigNc() +
+      seccionPlantillas() + seccionProductos() + seccionConfigNc() +
       '<section class="tarjeta" id="miembros"><h2>Personas</h2><p class="ayuda">Cargando…</p></section>' +
       '<button class="btn" data-act="inicio">Volver</button>';
     setTimeout(cargarMiembros, 0);
@@ -850,7 +876,16 @@
     }
   }
 
+  // Al reemplazar la pantalla, el campo que tenía el foco se quita y el navegador dispara su
+  // "change" (si tenía un valor nuevo) en medio del reemplazo; si ese evento vuelve a dibujar,
+  // el navegador da error. Por eso un dibujo no puede empezar mientras otro está en curso.
+  var dibujando = false;
   function dibujar() {
+    if (dibujando) return;
+    dibujando = true;
+    try { dibujarAhora(); } finally { dibujando = false; }
+  }
+  function dibujarAhora() {
     var p = perfil();
     document.getElementById('empresa-nombre').textContent = p && ui.pantalla !== 'login' ? p.empresa : '';
     document.getElementById('menu').hidden = !p || ['login', 'empresa', 'sinConfig'].indexOf(ui.pantalla) >= 0;
@@ -923,6 +958,107 @@
 
   // ───────────────────────── Eventos ─────────────────────────
 
+  // ───────────── Catálogo de productos ─────────────
+
+  // Al elegir (o escribir) un producto del catálogo en un lote nuevo se completa lo demás.
+  function completarDesdeProducto(f) {
+    if (ui.loteId) return;
+    var b = borradorDe(f);
+    var prod = Reglas.buscarProducto(Reglas.productos(config()), b.prod);
+    if (!prod) {
+      // Se escribió otro producto: deja de figurar como "completado desde el catálogo".
+      if (b.productoId) { ui.borrador = Object.assign(b, { productoId: '' }); dibujar(); }
+      else ui.borrador = b;
+      return;
+    }
+    var ps = plantillasEmpresa();
+    var plantilla = ps.filter(function (x) { return x.id === prod.plantillaId; })[0] ||
+      ps.filter(function (x) { return x.id === b.plantillaId; })[0] || ps[0];
+    var v = Reglas.valoresDeProducto(prod, plantilla);
+    ui.borrador = Object.assign(b, { plantillaId: plantilla.id, prod: v.prod, productoId: v.productoId, rangos: v.rangos,
+      extra: Object.assign({}, b.extra, v.extra), cantFinal: v.cantFinal === undefined || v.cantFinal === '' ? undefined : v.cantFinal });
+    dibujar();
+    var sig = document.querySelector('[data-form="cabecera"] [name="lote"]');
+    if (sig && !sig.value) sig.focus();
+  }
+
+  async function guardarConfig(cambios) {
+    var cfg = Object.assign({}, config(), cambios);
+    delete cfg.inductoras;
+    await Nube.guardarEmpresa(perfil().empresaId, perfil().empresa, cfg);
+    Store.setPerfil(Object.assign({}, perfil(), { config: cfg }));
+  }
+
+  async function guardarComoProducto(cab, plantilla, cantFinal) {
+    var lista = Reglas.productos(config()).slice();
+    var prod = Reglas.productoDesdeLote(cab, plantilla, cantFinal, '');
+    var problema = Reglas.validarProducto(prod, lista, -1, plantillasEmpresa());
+    if (problema) return aviso('No se guardó en el catálogo: ' + problema);
+    try { await guardarConfig({ productos: lista.concat([prod]) }); aviso('Lote creado y producto guardado en el catálogo'); }
+    catch (e) { aviso('El lote se creó, pero el producto no se guardó en el catálogo: ' + e.message); }
+  }
+
+  // ⚙ Productos (solo Administración, como las plantillas).
+  function seccionProductos() {
+    var prods = Reglas.productos(config()), ps = plantillasEmpresa();
+    return '<section class="tarjeta" id="productos"><h2>Productos</h2>' +
+      '<p class="ayuda">Optativo. Al crear un lote, elegir el producto completa su plantilla, los rangos y los datos del lote. ' +
+      'Un producto que no está se escribe a mano, como siempre.</p>' +
+      (prods.length ? prods.map(function (x, i) {
+        var p = ps.filter(function (y) { return y.id === x.plantillaId; })[0];
+        var n = Object.keys(x.rangos || {}).length;
+        return '<div class="fila-plantilla"><span><b>' + esc(x.nombre) + '</b><small>' + (x.codigo ? esc(x.codigo) + ' · ' : '') +
+          (p ? esc(p.nombre) : '<b class="txt-nok">su plantilla ya no existe</b>') + (n ? ' · ' + n + ' rango' + (n === 1 ? '' : 's') : '') + '</small></span>' +
+          '<button class="btn chico" data-act="editar-producto" data-i="' + i + '">Editar</button>' +
+          '<button class="btn chico peligro" data-act="borrar-producto" data-i="' + i + '">Borrar</button></div>';
+      }).join('') : '<p class="vacio">Todavía no hay productos.</p>') +
+      '<button class="btn" data-act="nuevo-producto">+ Nuevo producto</button></section>';
+  }
+
+  pantallas.producto = function () {
+    var x = ui.prodEdit, ps = plantillasEmpresa();
+    var p = ps.filter(function (y) { return y.id === x.plantillaId; })[0] || ps[0];
+    var conRango = Reglas.itemsConRango(p);
+    return '<section class="tarjeta"><h2>' + (ui.prodIdx < 0 ? 'Nuevo producto' : 'Editar producto') + '</h2>' +
+      '<form data-form="producto">' +
+      '<div class="fila2"><label>Nombre *<input name="nombre" required value="' + esc(x.nombre || '') + '" placeholder="Ej.: Aceite girasol 1,5 L"></label>' +
+      '<label>Código<input name="codigo" value="' + esc(x.codigo || '') + '" placeholder="Opcional"></label></div>' +
+      '<label>Plantilla de control<select name="plantilla" data-act-change="producto-plantilla">' +
+      opciones(ps.map(function (y) { return { v: y.id, t: y.nombre }; }), p.id) + '</select></label>' +
+      (conRango.length ? '<h3>Rangos por defecto</h3><p class="ayuda">Se cargan solos en cada lote de este producto (se pueden cambiar en el lote).</p>' +
+        conRango.map(function (it) {
+          var r = (x.rangos || {})[it.id] || {}, u = it.unidad ? ' (' + esc(it.unidad) + ')' : '';
+          return '<div class="fila2"><label>' + esc(it.nombre) + ': mín.' + u + '<input name="min-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.min === undefined ? '' : r.min) + '"></label>' +
+            '<label>' + esc(it.nombre) + ': máx.' + u + '<input name="max-' + esc(it.id) + '" inputmode="decimal" value="' + esc(r.max === undefined ? '' : r.max) + '"></label></div>';
+        }).join('') : '') +
+      '<div class="fila2">' +
+      (p.cantidad ? '<label>Cantidad por ' + esc(nombreUnidad(p, 1)) + ' (' + esc(p.cantidad) + ')<input name="cantPorUnidad" inputmode="decimal" value="' + esc(x.cantPorUnidad || '') + '"></label>' : '') +
+      '<label>' + esc(p.unidades) + ' del control final<input name="cantFinal" type="number" min="0" max="200" value="' +
+      esc(x.cantFinal === undefined || x.cantFinal === '' ? '' : x.cantFinal) + '" placeholder="' + esc(p.cantFinal === undefined ? 12 : p.cantFinal) + '"></label></div>' +
+      ((p.cabecera || []).length ? '<h3>Datos del lote por defecto</h3>' + camposDatos(p, x.extra || {}, true) : '') +
+      '<div class="acciones"><button class="btn" type="button" data-act="config">Cancelar</button>' +
+      '<button class="btn primario" type="submit">Guardar producto</button></div></form></section>';
+  };
+
+  function leerProducto(f) {
+    var x = Reglas.copia(ui.prodEdit);
+    x.nombre = f.nombre.value.trim();
+    x.codigo = f.codigo.value.trim();
+    x.plantillaId = f.plantilla.value;
+    x.rangos = {};
+    [].forEach.call(f.querySelectorAll('[name^="min-"]'), function (inp) {
+      var id = inp.name.slice(4), max = f.querySelector('[name="max-' + id + '"]').value.trim();
+      if (inp.value.trim() !== '' || max !== '') x.rangos[id] = { min: inp.value.trim(), max: max };
+    });
+    x.cantPorUnidad = f.cantPorUnidad ? f.cantPorUnidad.value.trim() : (x.cantPorUnidad || '');
+    var n = parseInt(f.cantFinal.value, 10);
+    x.cantFinal = isNaN(n) ? '' : Math.max(0, Math.min(200, n));
+    x.extra = {};
+    var datos = leerDatos(f);
+    Object.keys(datos).forEach(function (k) { if (datos[k]) x.extra[k] = datos[k]; });
+    return x;
+  }
+
   // Trae las NC del respaldo de la app individual (calidad-no-conformidades). No repite las que
   // ya se importaron (cada una recuerda de qué fila vino) y saltea las que no tienen lo mínimo.
   async function importarNcIndividual(input) {
@@ -966,6 +1102,20 @@
     },
     'editar-cab': function () { ir('nuevo', { loteId: ui.loteId }); },
     config: function () { ir('config', { tiposNcEdit: null }); },
+    'nuevo-producto': function () {
+      ir('producto', { prodIdx: -1, prodEdit: { id: 'pr' + Date.now().toString(36), nombre: '', codigo: '', plantillaId: (plantillasEmpresa()[0] || {}).id,
+        rangos: {}, cantPorUnidad: '', cantFinal: '', extra: {} } });
+    },
+    'editar-producto': function (b) {
+      ir('producto', { prodIdx: Number(b.dataset.i), prodEdit: Reglas.copia(Reglas.productos(config())[Number(b.dataset.i)]) });
+    },
+    'borrar-producto': async function (b) {
+      var lista = Reglas.productos(config()).slice(), i = Number(b.dataset.i);
+      if (!confirm('¿Borrar el producto "' + lista[i].nombre + '" del catálogo? Los lotes ya creados no cambian.')) return;
+      lista.splice(i, 1);
+      try { await guardarConfig({ productos: lista }); aviso('Producto borrado'); dibujar(); }
+      catch (e) { aviso(e.message); }
+    },
     'nueva-nc': function () {
       ir('nc', { ncId: null, ncNueva: Reglas.nuevaNc({ creadaPor: quienSoy() }, plazoNc()) });
     },
@@ -1251,6 +1401,9 @@
         linea: f.linea.value.trim(), fecha: f.fecha.value, checker: f.checker.value.trim(), rangos: rangos,
         extra: leerDatos(f)
       };
+      // De qué producto del catálogo salió (si salió de uno). Al editar se conserva.
+      var delCatalogo = Reglas.buscarProducto(Reglas.productos(config()), cab.prod);
+      cab.productoId = l ? (l.datos.cab.productoId || '') : (delCatalogo ? delCatalogo.id : '');
       // El navegador ya exige los obligatorios (required); esto cubre un formulario armado distinto.
       var faltan = Reglas.datosFaltantes(plantilla, cab);
       if (faltan.length) return aviso('Falta completar: ' + faltan.join(', '));
@@ -1259,8 +1412,11 @@
         cambiarLote(function (d) { d.cab = cab; }, false);
       } else {
         var n = Math.max(0, Math.min(200, parseInt(f.cantFinal.value, 10) || 0));
-        ui.loteId = Store.crear(Reglas.nuevoLote(cab, plantilla, n));
+        var nuevo = Reglas.nuevoLote(cab, plantilla, n);
+        if (delCatalogo && delCatalogo.cantPorUnidad) nuevo.final.cantPorUnidad = String(delCatalogo.cantPorUnidad);
+        ui.loteId = Store.crear(nuevo);
         programarSync();
+        if (f.guardarProducto && f.guardarProducto.checked) guardarComoProducto(cab, plantilla, n);
       }
       ir('lote', { loteId: ui.loteId });
     },
@@ -1322,6 +1478,15 @@
         dibujar();
       } catch (e) { aviso(e.message); }
     },
+    producto: async function (f) {
+      var x = leerProducto(f);
+      var lista = Reglas.productos(config()).slice();
+      var problema = Reglas.validarProducto(x, lista, ui.prodIdx, plantillasEmpresa());
+      if (problema) return aviso(problema);
+      if (ui.prodIdx < 0) lista.push(x); else lista[ui.prodIdx] = x;
+      try { await guardarConfig({ productos: lista }); aviso('Producto guardado'); ir('config'); }
+      catch (e) { ui.prodEdit = x; aviso(e.message); }
+    },
     nc: function (f) {
       var nueva = !ui.ncId;
       if (!guardarNc(f)) return;
@@ -1368,6 +1533,18 @@
     if (fn) fn(f);
   });
 
+  // Enter en el producto de un lote nuevo = elegirlo (completa desde el catálogo y pasa al n° de
+  // lote), no crear el lote a medio llenar.
+  document.addEventListener('keydown', function (ev) {
+    var t = ev.target;
+    if (ev.key === 'Enter' && t.name === 'prod' && t.dataset && t.dataset.actChange === 'producto-lote') {
+      ev.preventDefault();
+      completarDesdeProducto(t.form);
+      var sig = document.querySelector('[data-form="cabecera"] [name="lote"]');
+      if (sig) sig.focus();
+    }
+  });
+
   document.addEventListener('input', function (ev) {
     if (ev.target.dataset && ev.target.dataset.sec && ui.pantalla === 'lote') alEscribir(ev.target);
   });
@@ -1384,10 +1561,15 @@
     if (s.dataset && s.dataset.actChange === 'importar-nc') { importarNcIndividual(s); return; }
     if (s.dataset && s.dataset.actChange === 'editor') { leerEditor(); dibujar(); return; }
     if (s.dataset && s.dataset.actChange === 'plantilla-lote') {
-      // Se guarda lo ya escrito y se redibuja con los rangos de la plantilla elegida.
-      var f = s.form;
-      ui.borrador = { plantillaId: s.value, prod: f.prod.value, lote: f.lote.value, cliente: f.cliente.value,
-        linea: f.linea.value, fecha: f.fecha.value, checker: f.checker.value, rangos: {}, extra: leerDatos(f) };
+      // Se guarda lo ya escrito y se redibuja con los rangos de la plantilla elegida (los rangos y
+      // la cantidad del control final vuelven a los de la plantilla nueva).
+      ui.borrador = Object.assign(borradorDe(s.form), { plantillaId: s.value, rangos: {}, cantFinal: undefined });
+      dibujar();
+      return;
+    }
+    if (s.dataset && s.dataset.actChange === 'producto-lote') { completarDesdeProducto(s.form); return; }
+    if (s.dataset && s.dataset.actChange === 'producto-plantilla') {
+      ui.prodEdit = Object.assign(leerProducto(s.form), { plantillaId: s.value });
       dibujar();
       return;
     }

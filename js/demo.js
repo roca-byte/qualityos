@@ -205,6 +205,16 @@ var Demo = (function () {
         historial: [{ version: '01', fecha: '2026-10-01', por: 'Laura Gómez', cambio: 'Creación del registro' }] })
     ],
     lineas: ['Env-01', 'Env-02', 'Env-04'],
+    // Catálogo de productos: elegir uno al crear el lote completa plantilla, rangos y datos.
+    productos: [
+      { id: 'pr-ag15', nombre: 'Aceite girasol 1,5 L', codigo: 'AG-15', plantillaId: 'agro', rangos: { peso: { min: '10', max: '11' } },
+        cantPorUnidad: '1000', cantFinal: 6, extra: { inductora: 'Inductora 2' } },
+      { id: 'pr-ao05', nombre: 'Aceite oliva 500 ml', codigo: 'AO-05', plantillaId: 'agro', rangos: { peso: { min: '9.6', max: '10.2' } },
+        cantPorUnidad: '960', cantFinal: 4, extra: { inductora: 'Inductora 1' } },
+      { id: 'pr-yf19', nombre: 'Yogur frutilla 190 g', codigo: 'YF-190', plantillaId: 'alimentos',
+        rangos: { peso: { min: '188', max: '196' }, temp: { min: '2', max: '6' }, tempF: { min: '2', max: '6' } },
+        cantPorUnidad: '480', cantFinal: 2, extra: { equipo: 'Envasadora 3' } }
+    ],
     tiposNc: [
       { nombre: 'Inducción débil', sev: 'Crítico' }, { nombre: 'Peso / volumen fuera de rango', sev: 'Leve' },
       { nombre: 'Sellado deficiente', sev: 'Crítico' }, { nombre: 'Trazabilidad / QR', sev: 'Crítico' },

@@ -330,6 +330,74 @@ var Reglas = (function () {
       .map(function (x) { return x.nombre + ': ' + (x.tipo === 'fecha' ? fechaLarga(x.valor) : x.valor); });
   }
 
+  // ───────────────────── Catálogo de productos ─────────────────────
+  // Optativo (empresas.config.productos). Cada producto dice con qué plantilla se controla y
+  // trae lo que hoy se tipea en cada lote: rangos de las mediciones "por lote", cantidad por
+  // unidad, cuántas unidades del control final y los datos del lote por defecto.
+  // { id, nombre, codigo, plantillaId, rangos: {itemId: {min, max}}, cantPorUnidad, cantFinal, extra: {datoId: valor} }
+  // El lote copia esos valores al crearse: corregir el catálogo no cambia los lotes ya hechos.
+
+  function productos(config) { return (config && Array.isArray(config.productos)) ? config.productos : []; }
+
+  // Busca por nombre o por código, sin importar mayúsculas ni espacios de más.
+  function buscarProducto(lista, texto) {
+    var t = String(texto || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!t) return null;
+    return lista.filter(function (p) {
+      return String(p.nombre).trim().replace(/\s+/g, ' ').toLowerCase() === t || (p.codigo && String(p.codigo).trim().toLowerCase() === t);
+    })[0] || null;
+  }
+
+  // Mediciones de la plantilla cuya tolerancia se carga en cada lote (las que el producto completa).
+  function itemsConRango(p) {
+    return p.linea.concat(p.final).filter(function (it) { return it.tipo === 'medicion' && it.tolerancia === 'lote'; });
+  }
+
+  // Lo que el producto completa en un lote nuevo con esa plantilla. Solo los rangos de ítems que
+  // la plantilla tiene, y solo los datos del lote que la plantilla pide.
+  function valoresDeProducto(prod, plantilla) {
+    var rangos = {}, extra = {};
+    itemsConRango(plantilla).forEach(function (it) {
+      var r = (prod.rangos || {})[it.id];
+      if (r) rangos[it.id] = { min: String(r.min === undefined ? '' : r.min), max: String(r.max === undefined ? '' : r.max) };
+    });
+    (plantilla.cabecera || []).forEach(function (d) {
+      var v = (prod.extra || {})[d.id];
+      if (v !== undefined && v !== '') extra[d.id] = String(v);
+    });
+    return { prod: prod.nombre, productoId: prod.id, rangos: rangos, extra: extra,
+      cantPorUnidad: String(prod.cantPorUnidad || ''), cantFinal: prod.cantFinal };
+  }
+
+  // "Guardar como producto": arma el producto con lo cargado en el lote.
+  function productoDesdeLote(cab, plantilla, cantFinal, cantPorUnidad) {
+    var rangos = {};
+    itemsConRango(plantilla).forEach(function (it) {
+      var r = (cab.rangos || {})[it.id];
+      if (r && (r.min !== '' || r.max !== '')) rangos[it.id] = { min: r.min, max: r.max };
+    });
+    var extra = {};
+    Object.keys(cab.extra || {}).forEach(function (k) { if (cab.extra[k]) extra[k] = cab.extra[k]; });
+    return { id: 'pr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nombre: String(cab.prod || '').trim(), codigo: '',
+      plantillaId: plantilla.id, rangos: rangos, cantPorUnidad: cantPorUnidad || '', cantFinal: cantFinal, extra: extra };
+  }
+
+  // Devuelve el problema o '' si se puede guardar. "indice" es su lugar en la lista (-1 = nuevo).
+  function validarProducto(prod, lista, indice, plantillasEmpresa) {
+    if (!String(prod.nombre || '').trim()) return 'El producto necesita un nombre.';
+    var otro = lista.filter(function (x, i) { return i !== indice; });
+    if (buscarProducto(otro, prod.nombre)) return 'Ya hay un producto llamado "' + prod.nombre.trim() + '".';
+    if (prod.codigo && buscarProducto(otro, prod.codigo)) return 'El código ' + prod.codigo + ' ya lo usa otro producto.';
+    if (!plantillasEmpresa.some(function (p) { return p.id === prod.plantillaId; })) return 'Elegí la plantilla de control del producto.';
+    var p = plantillasEmpresa.filter(function (x) { return x.id === prod.plantillaId; })[0];
+    var malo = itemsConRango(p).filter(function (it) {
+      var r = (prod.rangos || {})[it.id] || {}, min = numero(r.min), max = numero(r.max);
+      return !isNaN(min) && !isNaN(max) && min > max;
+    })[0];
+    if (malo) return '"' + malo.nombre + '": el mínimo es mayor que el máximo.';
+    return '';
+  }
+
   // ───────────────────── Codificación del registro ─────────────────────
   // Cada plantilla es un registro del sistema de gestión (ISO 9001, 7.5): tiene código,
   // versión, vigencia, quién elaboró y quién aprobó, y un historial de versiones.
@@ -629,6 +697,8 @@ var Reglas = (function () {
   return {
     TIPOS: TIPOS, EJEMPLOS: EJEMPLOS, TIPOS_DATO: TIPOS_DATO,
     datosLote: datosLote, datosFaltantes: datosFaltantes, textoDatos: textoDatos,
+    productos: productos, buscarProducto: buscarProducto, itemsConRango: itemsConRango, valoresDeProducto: valoresDeProducto,
+    productoDesdeLote: productoDesdeLote, validarProducto: validarProducto,
     hoy: hoy, fechaLarga: fechaLarga, numero: numero, copia: copia, nuevoId: nuevoId,
     rango: rango, semaforo: semaforo, lecturas: lecturas, vacio: vacio, evaluar: evaluar,
     estadoUnidadLinea: estadoUnidadLinea, estadoUnidadFinal: estadoUnidadFinal, faltantes: faltantes,

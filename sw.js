@@ -1,7 +1,7 @@
 // Service worker: guarda la app para que abra sin señal en planta.
 // Estrategia "red primero": con señal siempre baja lo último; sin señal usa la copia.
 // Al cambiar cualquier archivo de la app, subí VERSION para que se renueve la copia.
-var VERSION = 'qualityos-v15';
+var VERSION = 'qualityos-v16';
 var ARCHIVOS = [
   './', './index.html', './manifest.json', './css/styles.css',
   './vendor/supabase.js', './js/config.js', './js/reglas.js', './js/store.js',
